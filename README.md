@@ -53,4 +53,4 @@ For Stage 1, `--target-release-date` or `--target-release-dates` sets a target-s
 - Runtime caches and prediction outputs are ignored by Git. Start with empty caches when reproducing the original experiment; clear cached literature summaries if the summarization model or prompt changes.
 - No reference stoichiometry should be supplied as an agent input. The optional `--pairs` file is for evaluation after prediction.
 
-The source scripts and input data should be reviewed before a public release. In particular, record the exact model revisions, Python environment, target JSON generation procedure, and dataset provenance used for a published result.
+For reproducible results, record the exact model revisions, Python environment, target JSON generation procedure, and dataset provenance used for a published result.
