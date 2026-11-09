@@ -1,0 +1,8 @@
+numpy
+pandas
+requests
+beautifulsoup4
+lxml
+torch
+transformers
+accelerate

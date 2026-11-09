@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+.smoke/
+
+# Runtime caches and generated results
+article_cache/
+pdb_json_cache/
+pubmed_cache*/
+uniprot_cache*/
+fulltext_cache/
+phase1_cache/
+results/
+stage2_baseline_homo_max/
+
+# Large downloaded model assets
+*.safetensors
+*.pt
+*.pth
+*.bin
