@@ -1,9 +1,1 @@
-numpy
-pandas
-biopython
-requests
-beautifulsoup4
-lxml
-torch
-transformers
-accelerate
+-e .

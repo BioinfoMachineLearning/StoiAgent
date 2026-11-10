@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stoiagent"
+version = "0.1.0"
+description = "Two-stage protein-complex stoichiometry prediction from FASTA"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "biopython",
+  "requests",
+  "beautifulsoup4",
+  "lxml",
+  "torch",
+  "transformers",
+  "accelerate",
+]
+
+[project.optional-dependencies]
+mistral = ["mistral-common"]
+
+[project.scripts]
+stoiagent = "stoiagent.run_stoiagent:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

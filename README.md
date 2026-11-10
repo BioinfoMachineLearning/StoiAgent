@@ -1,20 +1,44 @@
 # StoiAgent
 
-StoiAgent predicts protein-complex stoichiometry from a target FASTA. It searches for structural templates, builds a Stage-1 evidence bundle, generates and ranks candidates with an LLM, models the shortlist with AlphaFold3, and reranks that fixed shortlist with the LLM. The final ranked prediction is written to `final_prediction.json`.
+StoiAgent predicts protein-complex stoichiometry from a FASTA file. It searches for structural templates, builds Stage-1 evidence, ranks candidate stoichiometries with an LLM, models the shortlist with AlphaFold 3 (AF3), and reranks the fixed shortlist. The final ranking is saved as `final_prediction.json`.
 
-## Requirements
+## Install StoiAgent
 
-- Python 3.10 or newer and `pip install -r requirements.txt`.
-- `jackhmmer` (HMMER), `hhmake` and `hhsearch` (HH-suite), a UniRef90 sequence database, and an HHsearch template database.
-- Template metadata: `<PDB_ID>_initial.fasta` files, `<PDB_ID>.json` files, `<HHR_hit_name>.atom.gz` files, and a CSV with `pdb_id` and `final_stoichiometry` columns. An optional `release_date` column supports template-date filtering.
-- A local AlphaFold3 installation, model parameters, sequence databases, and a working Docker or Singularity image.
-- A machine capable of loading the chosen StoiAgent backbone and fixed Qwen3-4B literature summarizer. For the Mistral backbone, install `mistral-common` too.
+Use a Linux machine with a GPU suitable for the selected LLM and AF3. From this repository:
 
-These databases, model weights, and container images are not distributed here. Set their paths in a local JSON configuration file. Example:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+stoiagent --help
+```
+
+`python -m stoiagent` is equivalent to `stoiagent`. The optional Mistral backbone requires `python -m pip install -e '.[mistral]'`. StoiAgent's Python dependencies are declared in `pyproject.toml`; `requirements.txt` is a convenience alias for an editable install.
+
+The template-search stage also needs host-accessible `jackhmmer` (HMMER), `hhmake`, `hhsearch` (HH-suite), UniRef90, and an HHsearch template database. Install HMMER/HH-suite through your system package manager or their upstream instructions, and verify that the three executables run. In addition, provide the template metadata described in the configuration below. These resources are separate from the AF3 installation and are not bundled with this package.
+
+## Install AlphaFold 3
+
+Follow the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md) for your machine. In particular, the standard GPU installation requires Linux, an NVIDIA GPU with Compute Capability 8.0 or higher, Docker with NVIDIA GPU support, substantial storage for the genetic databases, and sufficient RAM. The official guide recommends at least 64 GB RAM and documents a database footprint of approximately 630 GB after extraction.
+
+For the Docker runtime used by StoiAgent, the essential steps are:
+
+1. Install Docker, the NVIDIA driver, and the NVIDIA Container Toolkit as described in the official guide. Check `nvidia-smi` and that a GPU-enabled Docker container can see the GPU.
+2. Clone `https://github.com/google-deepmind/alphafold3.git`. From that directory, run `./fetch_databases.sh /absolute/path/to/af3_databases`. Keep the database directory outside the source checkout.
+3. Obtain the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) separately and place them in `/absolute/path/to/af3_models`. Review the linked model terms. Model parameters are not included in this repository.
+4. From the AF3 source directory, build the official image: `docker build -t alphafold3 -f docker/Dockerfile .`. Run the official sample prediction first to verify the installation.
+5. Set `af3_program_path` to the AF3 source checkout, `af3_params_path` to the parameter directory, `af3_db_path` to the database directory, and `af3_image` to `alphafold3` in the StoiAgent configuration. The runner mounts the models at `/root/models` and databases at `/root/public_databases` inside the container.
+
+The [official Singularity instructions](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#running-using-singularity-instead-of-docker) are an alternative: build an `alphafold3.sif` from the Docker image, set `af3_runtime` to `singularity`, and set `af3_sif_path` to that file. StoiAgent invokes the installed AF3 image; it does not install AF3 or download its databases or parameters.
+
+## Configure template search and AF3
+
+Create a local JSON file with absolute paths. The `uniref90_path` may point to the UniRef90 FASTA downloaded for AF3. The `hhdb_prefix` must identify a separately prepared HHsearch database. The template metadata must include `<PDB_ID>_initial.fasta` files, `<PDB_ID>.json` files, `<HHR_hit_name>.atom.gz` files, and a CSV with `pdb_id` and `final_stoichiometry` columns. An optional `release_date` column supports template-date filtering in the standalone builder.
 
 ```json
 {
-  "uniref90_path": "/data/uniref90.fasta",
+  "uniref90_path": "/data/af3_databases/uniref90_2022_05.fa",
   "hhdb_prefix": "/data/pdb70/pdb70",
   "jackhmmer_binary": "jackhmmer",
   "hhmake_binary": "hhmake",
@@ -27,19 +51,17 @@ These databases, model weights, and container images are not distributed here. S
   "af3_program_path": "/opt/alphafold3",
   "af3_params_path": "/data/af3_models",
   "af3_db_path": "/data/af3_databases",
-  "af3_image": "alphafold3_stoiagent",
+  "af3_image": "alphafold3",
   "gpu_device": "0"
 }
 ```
 
-For Singularity, set `"af3_runtime": "singularity"` and `"af3_sif_path"` to the image file. Use absolute paths in the configuration.
-
 ## Run from FASTA
 
-Supply one FASTA record per **distinct** protein subunit, in A/B/C order. Repeated identical sequences are collapsed automatically, so a homomer can be supplied as one record. The target FASTA is the only target-specific file required.
+Supply one FASTA record per **distinct** protein subunit in A/B/C order. Repeated identical sequences are collapsed automatically, so a homomer can be supplied as one record. No HHR file is required: the package generates its own HHsearch results.
 
 ```bash
-python run_stoiagent.py \
+stoiagent \
   --input_fasta /path/to/complex.fasta \
   --config /path/to/config.json \
   --output_dir /path/to/results/complex \
@@ -47,25 +69,29 @@ python run_stoiagent.py \
   --organism "Organism name"
 ```
 
-`--description` and `--organism` are optional; the FASTA filename and “unspecified organism” are used when omitted. `--model` selects the LLM backbone (default `Qwen3.6-27B`), `--k` selects the Stage-1 shortlist size (default 5), and `--num_models` selects AlphaFold3 models per feasible candidate (default 100, a multiple of five). Run each different target or configuration in its own output directory.
+`--description` and `--organism` are optional. `--model` selects the LLM backbone (default `Qwen3.6-27B`), `--k` selects the Stage-1 shortlist size (default 5), and `--num_models` selects AF3 models per feasible candidate (default 100, a multiple of five). Run each target or configuration in its own output directory.
 
-The command generates internal HHsearch result files from the FASTA; users do not provide HHR files. Stage 1 performs 15 stochastic samples. AlphaFold3 evaluates the first `k` Stage-1 candidates that fit within the 5,000-residue and 26-chain limits. Candidates that exceed the limits remain in the Stage-2 shortlist with unavailable AF3 scores. Stage 2 reranks exactly that shortlist. The final output is `final_prediction.json`, containing the top-1 prediction, complete ranking, and paths to detailed Stage-1, AF3, and Stage-2 results.
+Stage 1 performs 15 stochastic samples. AF3 evaluates Stage-1 candidates that fit within the 5,000-residue and 26-chain limits. Candidates beyond those limits remain in the Stage-2 shortlist without AF3 scores. Stage 2 reranks exactly that shortlist. `final_prediction.json` contains the top-1 prediction, complete ranking, and paths to detailed results. AF3 ranking scores are structural-confidence evidence, not probabilities that a stoichiometry is biologically correct.
 
-Template search and AlphaFold3 output directories are reused when rerunning the same output folder. Use a fresh output directory if databases, models, or configuration change. AF3 ranking scores are structural-confidence evidence, not probabilities that a stoichiometry is biologically correct.
+The template-search and AF3 output directories are reused when rerunning the same output folder. Use a fresh output directory if databases, models, or configuration change.
 
-## Main files
+## Repository layout
 
-| File | Role |
-| --- | --- |
-| `run_stoiagent.py` | Runs FASTA → template search → Stage 1 → AlphaFold3 → Stage 2. |
-| `template_search.py` | Runs jackhmmer, HHmake, and HHsearch per distinct subunit. |
-| `build_single_finetune_json.py` | Builds Stage-1 template evidence JSON from FASTA and search results. |
-| `stage1_agent.py` | Stage-1 candidate generation and ranking. |
-| `af3_runner.py` | Generates AlphaFold3 jobs and collects candidate ranking scores. |
-| `stage2_rerank.py` | Reranks the fixed candidate pool. |
-| `agent_helper.py`, `casp17_three_level_common.py`, `D_core_three_level.py` | Evidence retrieval, historical benchmark support, and model utilities. |
-| `parsers.py` | HH-suite and PDB parsing, adapted from the supplied DeepMind parser under Apache 2.0. |
+```text
+src/stoiagent/       Installable Python package and command-line pipeline
+  run_stoiagent.py   FASTA → template search → Stage 1 → AF3 → Stage 2
+  template_search.py Host-side jackhmmer, HHmake, and HHsearch
+  build_single_finetune_json.py  Stage-1 template evidence builder
+  stage1_agent.py    Stage-1 candidate generation and ranking
+  af3_runner.py      AF3 jobs and ranking-score collection
+  stage2_rerank.py   Fixed-shortlist reranking
+  agent_helper.py, casp17_three_level_common.py, D_core_three_level.py
+                    Evidence retrieval and research utilities
+  parsers.py         HH-suite and PDB parsing
+tests/               Focused pipeline tests
+pyproject.toml       Package metadata, dependencies, and CLI entry point
+```
 
-The standalone Stage-1 and Stage-2 scripts retain their CASP17 research interfaces. `run_stoiagent.py` creates a compatible local sequence catalog from the supplied FASTA, so no CASP17 input file is needed for the end-to-end command. The internal target ID is withheld from the LLM prompts. For historical benchmark evaluation, use the original target-release cutoffs and sequence release file via the standalone scripts.
+Advanced research interfaces remain available with `python -m stoiagent.stage1_agent` and `python -m stoiagent.stage2_rerank`. The end-to-end command creates a local sequence catalog from the FASTA, so no CASP17 input file is needed. Its internal target ID is withheld from LLM prompts. For historical benchmark evaluation, supply the original target-release cutoffs and sequence release file to the standalone stage modules.
 
-The adapted parser retains its original copyright and license notice. A copy of the Apache 2.0 license is in `APACHE-2.0-LICENSE.txt`.
+The adapted parser retains its original DeepMind copyright and Apache 2.0 notice. A copy of that license is in `APACHE-2.0-LICENSE.txt`.
