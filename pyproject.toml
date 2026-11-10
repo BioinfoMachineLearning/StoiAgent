@@ -16,12 +16,12 @@ dependencies = [
   "beautifulsoup4",
   "lxml",
   "torch",
-  "transformers",
+  "transformers>=5.18.0",
   "accelerate",
 ]
 
 [project.optional-dependencies]
-mistral = ["mistral-common"]
+mistral = ["mistral-common>=1.6.2"]
 
 [project.scripts]
 stoiagent = "stoiagent.run_stoiagent:main"
