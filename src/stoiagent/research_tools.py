@@ -20,7 +20,7 @@ Level 2:
     actions + deterministic stoichiometry validation).
 
 Model loading, CASP17 sequence parsing, Qwen3-4B literature summarization, and
-stoichiometry parsing come from agent_common/utils, shared with stage1_agent and D.
+stoichiometry parsing come from agent_common/utils, shared with stage1_agent and stage1_agent_full.
 """
 
 import copy
@@ -44,7 +44,7 @@ from .agent_common import (
 )
 from .utils import generate_chain_ids, sort_subunits, normalize_stoich, simplest_stoich, strip_quotes as _strip_quotes
 # D's parse_confidences differs from stage1's (it does not accept 'support = <x>'); kept as-is.
-from .D_core_three_level import parse_confidences
+from .stage1_agent_full import parse_confidences
 
 
 # ---------------------------------------------------------------------

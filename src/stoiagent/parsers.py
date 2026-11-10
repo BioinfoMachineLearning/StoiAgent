@@ -15,7 +15,7 @@
 """HHR and gzipped PDB parsing functions used by the JSON builder.
 
 Adapted from the parser implementation supplied with StoiAgent. Only the
-functions used by ``build_single_finetune_json.py`` are included here.
+functions used by ``build_target_json.py`` are included here.
 """
 
 import dataclasses

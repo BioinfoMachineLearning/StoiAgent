@@ -81,15 +81,15 @@ The template-search and AF3 output directories are reused when rerunning the sam
 src/stoiagent/       Installable Python package and command-line pipeline
   run_stoiagent.py   FASTA → template search → Stage 1 → AF3 → Stage 2
   template_search.py Host-side jackhmmer, HHmake, and HHsearch
-  build_single_finetune_json.py  Stage-1 template evidence builder
+  build_target_json.py  Stage-1 template evidence builder
   stage1_agent.py    Stage-1 candidate generation and ranking
   af3_runner.py      AF3 jobs and ranking-score collection
   stage2_rerank.py   Fixed-shortlist reranking
   agent_common.py    Shared Stage-1 code: model loading, summary cache, validation
   utils.py           Lightweight chain-ID and stoichiometry helpers
-  agent_helper.py    DiscoveryCache (RCSB/UniProt/PubMed retrieval)
-  casp17_three_level_common.py, D_core_three_level.py
-                    CASP17 research tools and the D research variant
+  discovery_cache.py DiscoveryCache (RCSB/UniProt/PubMed retrieval)
+  research_tools.py  RCSB/UniProt/PubMed research actions for the agent
+  stage1_agent_full.py  Stage-1 variant that sees all template evidence
   parsers.py         HH-suite and PDB parsing
 tests/               Focused pipeline tests
 pyproject.toml       Package metadata, dependencies, and CLI entry point

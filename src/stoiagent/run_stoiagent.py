@@ -73,7 +73,7 @@ def main(argv=None) -> None:
     target_dir = out / "raw" / TARGET_ID / "stoichiometry" / f"{TARGET_ID}_subunit"
     target_json = out / f"{TARGET_ID}.json"
     _run([
-        "-m", "stoiagent.build_single_finetune_json",
+        "-m", "stoiagent.build_target_json",
         "--input_fasta", str(canonical_fasta), "--config", str(config_path),
         "--workdir", str(out / "template_search"),
         "--output_json", str(target_json), "--protein_id", TARGET_ID,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Code shared by the Stage-1 agent (stage1_agent) and the D research variant
-(D_core_three_level): model loading (HFLLM), the frozen literature-summary cache,
+"""Code shared by the Stage-1 agent (stage1_agent) and the full-template variant
+(stage1_agent_full): model loading (HFLLM), the frozen literature-summary cache,
 candidate validation / scaffold completion, and CASP17 sequence-catalog parsing.
 
 FROZEN_SUMMARY_CACHE_DIR is read from *this* module; entry points must set

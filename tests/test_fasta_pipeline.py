@@ -105,7 +105,7 @@ class FastaPipelineTest(unittest.TestCase):
             self.assertEqual(final["top1_stoichiometry"], "A3")
             self.assertEqual(af3.call_args.args[1], ["A2", "A3"])
             self.assertEqual([cmd[1] for cmd in commands], [
-                "stoiagent.build_single_finetune_json", "stoiagent.stage1_agent", "stoiagent.stage2_rerank"
+                "stoiagent.build_target_json", "stoiagent.stage1_agent", "stoiagent.stage2_rerank"
             ])
 
 

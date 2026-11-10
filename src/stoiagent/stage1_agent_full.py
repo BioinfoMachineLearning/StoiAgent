@@ -9,7 +9,7 @@ import gzip
 import numpy as np
 
 
-from .agent_helper import DiscoveryCache
+from .discovery_cache import DiscoveryCache
 from .utils import (
     sort_subunits,
     normalize_stoich,

@@ -14,7 +14,7 @@ from collections import Counter
 import numpy as np
 
 
-from .agent_helper import DiscoveryCache
+from .discovery_cache import DiscoveryCache
 from .utils import sort_subunits, normalize_stoich, simplest_stoich, strip_quotes as _strip_quotes
 from . import agent_common
 from .agent_common import (
@@ -37,7 +37,7 @@ from .agent_common import (
     sanitize_chat_messages,
     validate_stoichiometry,
 )
-from .casp17_three_level_common import ResearchToolExecutor, resolve_target_information_cutoff
+from .research_tools import ResearchToolExecutor, resolve_target_information_cutoff
 
 
 EXPERIMENT_VARIANT = 'S1_stoiagent_shared_template_compact_soft_fallback_search'
