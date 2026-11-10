@@ -1,8 +1,10 @@
 """Default locations of databases and tools, and config-file loading.
 
 Every path defaults to a fixed location inside the StoiAgent folder, so a
-config file is only needed to override some of them. Relative paths, in the
-defaults or in a user config, are resolved against the StoiAgent folder.
+config file is only needed to override some of them. Without --config,
+StoiAgent reads config.json in the StoiAgent folder if it exists (the setup
+script writes it when databases are installed elsewhere). Relative paths, in
+the defaults or in a config file, are resolved against the StoiAgent folder.
 """
 
 from __future__ import annotations
@@ -14,16 +16,16 @@ from pathlib import Path
 DEFAULT_CONFIG = {
     # Template search
     "uniref90_path": "databases/af3/uniref90_2022_05.fa",
-    "hhdb_prefix": "databases/pdb70/pdb70",
+    "hhdb_prefix": "databases/sort90_hhsuitedb/hhsuitedb3",
     "jackhmmer_binary": "jackhmmer",
     "hhmake_binary": "hhmake",
     "hhsearch_binary": "hhsearch",
     "search_cpu": 8,
     # Template metadata
-    "template_fasta_dir": "databases/templates/fasta",
-    "template_pdb_json_dir": "databases/templates/json",
-    "template_atom_dir": "databases/templates/atom",
-    "template_label_csv": "databases/templates/labels.csv",
+    "template_entity_fasta_dir": "databases/templates/entity_fasta",
+    "template_entity_metadata_dir": "databases/templates/entity_metadata",
+    "template_chain_atoms_dir": "databases/templates/chain_atoms",
+    "template_stoichiometry_csv": "databases/templates/pdb_stoichiometry.csv",
     # AlphaFold 3
     "af3_runtime": "docker",
     "af3_program_path": "tools/alphafold3",
@@ -36,14 +38,19 @@ DEFAULT_CONFIG = {
 
 PATH_KEYS = (
     "uniref90_path", "hhdb_prefix",
-    "template_fasta_dir", "template_pdb_json_dir", "template_atom_dir", "template_label_csv",
+    "template_entity_fasta_dir", "template_entity_metadata_dir",
+    "template_chain_atoms_dir", "template_stoichiometry_csv",
     "af3_program_path", "af3_params_path", "af3_db_path", "af3_sif_path",
 )
 
 # Older config files used these names.
 _LEGACY_KEYS = {
-    "stoichiometry_pdb_fasta_folder": "template_fasta_dir",
-    "pdb_stoichiometry_database": "template_label_csv",
+    "template_fasta_dir": "template_entity_fasta_dir",
+    "stoichiometry_pdb_fasta_folder": "template_entity_fasta_dir",
+    "template_pdb_json_dir": "template_entity_metadata_dir",
+    "template_atom_dir": "template_chain_atoms_dir",
+    "template_label_csv": "template_stoichiometry_csv",
+    "pdb_stoichiometry_database": "template_stoichiometry_csv",
 }
 
 
@@ -63,8 +70,14 @@ def stoiagent_home() -> Path:
 
 
 def load_config(path: str | os.PathLike | None = None) -> dict:
-    """Return the defaults, overridden by the JSON file at ``path`` if given."""
+    """Return the defaults, overridden by the JSON file at ``path``.
+
+    Without ``path``, ``config.json`` in the StoiAgent folder is used if present.
+    """
     config = dict(DEFAULT_CONFIG)
+    home = stoiagent_home()
+    if not path and (home / "config.json").is_file():
+        path = home / "config.json"
     if path:
         with open(path, encoding="utf-8") as f:
             user = json.load(f)
@@ -72,7 +85,6 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
             if user.get(old) and not user.get(new):
                 user[new] = user[old]
         config.update({k: v for k, v in user.items() if v not in (None, "")})
-    home = stoiagent_home()
     for key in PATH_KEYS:
         p = Path(str(config[key])).expanduser()
         config[key] = str(p if p.is_absolute() else home / p)

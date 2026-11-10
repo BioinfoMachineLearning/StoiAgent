@@ -28,3 +28,6 @@ stage2_baseline_homo_max/
 # Downloaded databases, model parameters and tools (default locations)
 databases/
 tools/
+
+# Paths written by scripts/setup_databases.sh --db-dir
+/config.json

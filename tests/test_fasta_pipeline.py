@@ -112,17 +112,28 @@ class FastaPipelineTest(unittest.TestCase):
             home = Path(directory)
             override = home / "override.json"
             override.write_text(json.dumps({
-                "af3_db_path": "/data/af3", "template_label_csv": "",
-                "stoichiometry_pdb_fasta_folder": "custom/fasta",
+                "af3_db_path": "/data/af3", "template_stoichiometry_csv": "",
+                "template_fasta_dir": "custom/fasta",
             }), encoding="utf-8")
             with patch.dict("os.environ", {"STOIAGENT_HOME": str(home)}):
                 default = load_config()
                 config = load_config(override)
-        self.assertEqual(default["hhdb_prefix"], str(home / "databases/pdb70/pdb70"))
+        self.assertEqual(default["hhdb_prefix"], str(home / "databases/sort90_hhsuitedb/hhsuitedb3"))
         self.assertEqual(default["af3_program_path"], str(home / "tools/alphafold3"))
         self.assertEqual(config["af3_db_path"], "/data/af3")
-        self.assertEqual(config["template_label_csv"], str(home / "databases/templates/labels.csv"))
-        self.assertEqual(config["template_fasta_dir"], str(home / "custom/fasta"))
+        self.assertEqual(config["template_stoichiometry_csv"],
+                         str(home / "databases/templates/pdb_stoichiometry.csv"))
+        self.assertEqual(config["template_entity_fasta_dir"], str(home / "custom/fasta"))
+
+    def test_config_json_in_stoiagent_folder_is_read_automatically(self):
+        from stoiagent.config import load_config
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "config.json").write_text(json.dumps({"af3_db_path": "/big/af3"}), encoding="utf-8")
+            with patch.dict("os.environ", {"STOIAGENT_HOME": str(home)}):
+                config = load_config()
+        self.assertEqual(config["af3_db_path"], "/big/af3")
+        self.assertEqual(config["hhdb_prefix"], str(home / "databases/sort90_hhsuitedb/hhsuitedb3"))
 
     def test_missing_resources_are_reported_with_their_keys(self):
         from stoiagent.config import load_config, require_paths

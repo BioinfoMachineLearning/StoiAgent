@@ -257,7 +257,10 @@ def build_template_metadata(
     except Exception:
         template_hit_sequence = ""
 
-    template_fasta_file = os.path.join(template_fasta_dir, template_id + "_initial.fasta")
+    # <PDB>.fasta; older releases of the entity FASTA set name it <PDB>_initial.fasta.
+    template_fasta_file = os.path.join(template_fasta_dir, template_id + ".fasta")
+    if not os.path.isfile(template_fasta_file):
+        template_fasta_file = os.path.join(template_fasta_dir, template_id + "_initial.fasta")
     subunit_in_full_stoich = ""
     try:
         records = list(SeqIO.parse(template_fasta_file, "fasta"))
@@ -1252,8 +1255,8 @@ def main(argv=None):
     config = load_config(args.config)
     try:
         require_paths(config, [
-            "uniref90_path", "hhdb_prefix", "template_fasta_dir",
-            "template_pdb_json_dir", "template_atom_dir", "template_label_csv",
+            "uniref90_path", "hhdb_prefix", "template_entity_fasta_dir",
+            "template_entity_metadata_dir", "template_chain_atoms_dir", "template_stoichiometry_csv",
         ])
     except FileNotFoundError as e:
         parser.error(str(e))
@@ -1268,10 +1271,10 @@ def main(argv=None):
         hhsearch_binary=config["hhsearch_binary"],
         cpu=int(config["search_cpu"]),
     )
-    template_fasta_dir = config["template_fasta_dir"]
-    template_pdb_json_dir = config["template_pdb_json_dir"]
-    template_atom_dir = config["template_atom_dir"]
-    template_label_csv = config["template_label_csv"]
+    template_fasta_dir = config["template_entity_fasta_dir"]
+    template_pdb_json_dir = config["template_entity_metadata_dir"]
+    template_atom_dir = config["template_chain_atoms_dir"]
+    template_label_csv = config["template_stoichiometry_csv"]
 
     training_label_df = pd.read_csv(template_label_csv)
     required_columns = {"pdb_id", "final_stoichiometry"}

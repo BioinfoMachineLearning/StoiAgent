@@ -20,55 +20,68 @@ stoiagent --help
 
 ## Set up databases and tools
 
-StoiAgent looks for its databases and tools inside this folder by default. If every resource is in its default location, no configuration file is needed. Git ignores `databases/` and `tools/`.
+Run the setup script from this folder. It downloads the HHsearch template database and the template metadata (about 33 GB), clones AlphaFold 3 (AF3) and downloads the AF3 databases (about 630 GB). Everything goes to the default locations below, so StoiAgent finds it without a configuration file.
+
+```bash
+scripts/setup_databases.sh
+```
+
+Downloads resume where they stopped, so rerun the script after an interruption. Options:
+
+- `--db-dir /big/disk/stoiagent_db` puts the databases on another disk and records their paths in `config.json` in this folder. StoiAgent reads that file automatically.
+- `--only templates` or `--only af3` sets up just one part.
+
+When it finishes, the script lists the steps it cannot do for you: the AF3 model parameters, the AF3 Docker image and the HMMER/HH-suite programs. These are described below. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
 
 ```text
 StoiAgent/
   tools/
-    alphafold3/             AF3 source checkout
-      models/af3.bin        AF3 model parameters
-    alphafold3.sif          AF3 Singularity image (Singularity runtime only)
+    alphafold3/             AF3 source checkout                       (setup script)
+      models/af3.bin        AF3 model parameters                      (manual)
+    alphafold3.sif          AF3 Singularity image, Singularity only   (manual)
   databases/
-    af3/                    AF3 genetic databases, including uniref90_2022_05.fa
-    pdb70/pdb70_*           HHsearch template database (prefix databases/pdb70/pdb70)
-    templates/
-      fasta/                <PDB_ID>_initial.fasta
-      json/                 <PDB_ID>.json
-      atom/                 <HHR_hit_name>.atom.gz
-      labels.csv            pdb_id, final_stoichiometry, optional release_date
+    af3/                    AF3 genetic databases, incl. UniRef90     (setup script)
+    sort90_hhsuitedb/       HHsearch template database (prefix hhsuitedb3) (setup script)
+    templates/              template metadata                         (setup script)
+      entity_fasta/
+      entity_metadata/
+      chain_atoms/
+      pdb_stoichiometry.csv
 ```
 
-If a resource is missing, StoiAgent stops before the step that needs it and lists the missing paths.
+Git ignores `databases/`, `tools/` and `config.json`.
 
 ### AlphaFold 3
 
-Follow the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md) for your machine. The standard GPU installation requires Linux, an NVIDIA GPU with Compute Capability 8.0 or higher, Docker with NVIDIA GPU support, at least 64 GB RAM, and about 630 GB of disk for the databases after extraction. Run these steps from this folder:
+The setup script clones AF3 into `tools/alphafold3` and downloads its databases to `databases/af3`. The rest follows the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md). The standard GPU installation requires Linux, an NVIDIA GPU with Compute Capability 8.0 or higher, Docker with NVIDIA GPU support, and at least 64 GB RAM.
 
 1. Install Docker, the NVIDIA driver, and the NVIDIA Container Toolkit as described in the official guide. Check `nvidia-smi` and that a GPU-enabled Docker container can see the GPU.
-2. Clone AF3 and download its databases:
-
-   ```bash
-   git clone https://github.com/google-deepmind/alphafold3.git tools/alphafold3
-   mkdir -p databases/af3
-   tools/alphafold3/fetch_databases.sh "$PWD/databases/af3"
-   ```
-
-3. Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and review their terms of use. Put them in `tools/alphafold3/models/`, so that the folder contains `af3.bin`. The parameters are not included in this repository.
-4. Build the official image and run the official sample prediction to verify the installation:
+2. Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and review their terms of use. Put them in `tools/alphafold3/models/`, so that the folder contains `af3.bin`. The parameters are not included in this repository.
+3. Build the official image and run the official sample prediction to verify the installation:
 
    ```bash
    docker build -t alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
    ```
 
-StoiAgent mounts `tools/alphafold3/models` at `/root/models` and `databases/af3` at `/root/public_databases` inside the container. To use Singularity instead, follow the [official Singularity instructions](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#running-using-singularity-instead-of-docker) to build `tools/alphafold3.sif`, and set `"af3_runtime": "singularity"` in a config file.
+StoiAgent mounts `tools/alphafold3/models` at `/root/models` and the AF3 databases at `/root/public_databases` inside the container. To use Singularity instead, follow the [official Singularity instructions](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#running-using-singularity-instead-of-docker) to build `tools/alphafold3.sif`, and set `"af3_runtime": "singularity"` in `config.json`.
 
 ### Template search
 
-Template search needs `jackhmmer` (HMMER) and `hhmake` and `hhsearch` (HH-suite) on the `PATH`. Install them with your system package manager or by following their upstream instructions, and check that all three run. Template search uses the UniRef90 file from the AF3 databases, so it needs no separate download. Put the HHsearch database in `databases/pdb70/` and the template metadata in `databases/templates/`, as shown in the layout above.
+Template search needs `jackhmmer` (HMMER) and `hhmake` and `hhsearch` (HH-suite) on the `PATH`. Install them with your system package manager or by following their upstream instructions, and check that all three run. It uses the UniRef90 file from the AF3 databases.
+
+The setup script downloads the HHsearch template database and the template metadata, which turns HHsearch hits into stoichiometry evidence:
+
+| File | Contents |
+|---|---|
+| `sort90_hhsuitedb/` | HHsearch database of PDB chain profiles (prefix `hhsuitedb3`), searched for templates of each subunit. |
+| `entity_fasta/` | For each PDB entry, one FASTA record per distinct entity. Record IDs are the subunit letters used in that entry's stoichiometry. |
+| `entity_metadata/` | For each PDB entry, the RCSB metadata: title, keywords, experimental method, resolution, citation and polymer entities. |
+| `chain_atoms/` | Coordinates of each template chain, named after its HHsearch hit (PDB ID plus chain ID), such as `101MA.atom.gz`. They are used to recover each hit's sequence. |
+| `pdb_stoichiometry.csv` | The assembly stoichiometry (`final_stoichiometry`) and `release_date` of each PDB entry. |
 
 ## Override default locations (optional)
 
-To keep a resource outside this folder, for example a shared AF3 database, pass `--config` with a JSON file that sets only the paths that differ. Relative paths are resolved against this folder. Set `STOIAGENT_HOME` to resolve the default locations against another folder instead.
+To keep a resource outside this folder, for example a shared AF3 database, set only the paths that differ in `config.json` in this folder, which StoiAgent reads automatically. You can also pass another file with `--config`, which is then used instead of `config.json`. Relative paths are resolved against this folder. Set `STOIAGENT_HOME` to resolve the default locations against another folder instead.
 
 ```json
 {
@@ -79,7 +92,7 @@ To keep a resource outside this folder, for example a shared AF3 database, pass 
 }
 ```
 
-The available keys are `uniref90_path`, `hhdb_prefix`, `template_fasta_dir`, `template_pdb_json_dir`, `template_atom_dir`, `template_label_csv`, `af3_program_path`, `af3_params_path`, `af3_db_path`, `af3_sif_path`, `af3_runtime` (`docker` or `singularity`), `af3_image`, `gpu_device`, `jackhmmer_binary`, `hhmake_binary`, `hhsearch_binary` and `search_cpu`. The defaults are in `src/stoiagent/config.py`.
+The available keys are `uniref90_path`, `hhdb_prefix`, `template_entity_fasta_dir`, `template_entity_metadata_dir`, `template_chain_atoms_dir`, `template_stoichiometry_csv`, `af3_program_path`, `af3_params_path`, `af3_db_path`, `af3_sif_path`, `af3_runtime` (`docker` or `singularity`), `af3_image`, `gpu_device`, `jackhmmer_binary`, `hhmake_binary`, `hhsearch_binary` and `search_cpu`. The defaults are in `src/stoiagent/config.py`.
 
 ## Run from FASTA
 
