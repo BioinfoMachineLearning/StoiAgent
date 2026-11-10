@@ -6,7 +6,18 @@ StoiAgent predicts protein-complex stoichiometry from a FASTA file. It searches 
 
 ## Install StoiAgent
 
-Use a Linux machine with a GPU suitable for the selected LLM and AF3. Install [Miniforge](https://github.com/conda-forge/miniforge), which provides `mamba`, then from this repository run:
+Use a Linux machine with a GPU suitable for the selected LLM and AF3.
+
+If `mamba` is not installed, install [Miniforge](https://github.com/conda-forge/miniforge), which provides it:
+
+```bash
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash "Miniforge3-$(uname)-$(uname -m).sh"
+```
+
+Accept the license, choose the install location (the default is `~/miniforge3`), and answer `yes` when asked whether to initialize the shell. Then open a new terminal, or run `source ~/.bashrc`, and check that `mamba --version` works.
+
+Then create the StoiAgent environment from this repository:
 
 ```bash
 mamba env create -f environment.yml
