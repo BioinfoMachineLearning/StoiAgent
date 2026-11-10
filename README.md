@@ -4,9 +4,32 @@ StoiAgent predicts protein-complex stoichiometry from a FASTA file. It searches 
 
 ![StoiAgent overview: input subunit sequences and templates, Stage-1 evidence-guided candidate generation, Stage-2 AlphaFold 3-informed reranking, and final ranked predictions](imgs/StoiAgent_description.png)
 
-## Install StoiAgent
+## System requirements
 
-Use a Linux machine with a GPU suitable for the selected LLM and AF3.
+| Component | Requirement |
+|---|---|
+| Operating system | Linux, x86_64 |
+| GPU | One NVIDIA GPU with **80 GB** of memory and compute capability 8.0 or higher, such as an A100 80GB or H100 80GB |
+| GPU driver | NVIDIA driver 525 or newer |
+| Container runtime | Docker with the NVIDIA Container Toolkit, or Singularity/Apptainer, to run AF3 |
+| CPU | 8 or more cores (template search runs `jackhmmer` with 8 threads by default) |
+| RAM | 64 GB or more |
+| Disk | About 1 TB free, preferably SSD (see below) |
+| Network | Internet access for setup, and during predictions for the RCSB, UniProt and PubMed queries that Stage 1 makes |
+
+The GPU needs 80 GB because the default backbone, Qwen3.6-27B, takes about 54 GB in 16-bit precision before any working memory, and AF3 needs the full 80 GB for complexes near StoiAgent's 5,000-residue limit. The LLM stages and AF3 run one after another, so a single GPU is enough.
+
+| Disk use | Size |
+|---|---|
+| AF3 genetic databases | about 630 GB |
+| Default LLM weights (Qwen3.6-27B and Qwen3-4B) | about 63 GB |
+| Template metadata and HHsearch database | about 57 GB, plus about 30 GB temporarily during setup |
+| `stoiagent` environment | about 6 GB |
+| AF3 Docker image | about 10 GB |
+
+Each prediction also writes its template searches, AF3 models and reasoning traces to its output directory.
+
+## Install StoiAgent
 
 If `mamba` is not installed, install [Miniforge](https://github.com/conda-forge/miniforge), which provides it:
 
