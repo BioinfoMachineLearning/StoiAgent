@@ -99,9 +99,57 @@ Stage 1 performs 15 stochastic samples. AF3 evaluates Stage-1 candidates that fi
 
 The template-search and AF3 output directories are reused when rerunning the same output folder. Use a fresh output directory if databases, models, or configuration change.
 
-## CASP16 and CASP17 examples
+## CASP16 and CASP17 datasets
 
-`examples/casp16/` (28 targets) and `examples/casp17/` (56 targets) contain one input FASTA per stoichiometry-blind CASP protein target, with one record per distinct subunit in A/B/C order. Cancelled targets, targets that turned out to be monomers, and targets whose stoichiometry CASP has not released are excluded. CASP16 targets use their Phase-0 IDs (`H0xxx`/`T0xxx`) and CASP17 targets their Phase-1 IDs (`H1xxx`/`T1xxx`). `examples/casp16_stoichiometry.csv` and `examples/casp17_stoichiometry.csv` list each target's true stoichiometry, taken from the oligomeric state CASP released in the next phase, along with its description and organism.
+The `examples/` folder contains two benchmark datasets built from the stoichiometry-blind protein targets of CASP16 and CASP17. For these targets, CASP first released only the subunit sequences, with the stoichiometry withheld ("UNK"). In the next phase it released the stoichiometry of the experimental structure, and the datasets use that as the true answer.
+
+| Dataset | Targets | Heteromers (`H`) | Homomers (`T`) | Target IDs | True stoichiometry from |
+|---|---|---|---|---|---|
+| CASP16 | 28 | 19 | 9 | Phase 0: `H0xxx`, `T0xxx` | Phase 1: `H1xxx`, `T1xxx` |
+| CASP17 | 56 | 43 | 13 | Phase 1: `H1xxx`, `T1xxx` | Phase 2: `H2xxx`, `T2xxx` |
+
+Heteromers have 2–9 distinct subunits, and complexes range from 2 to 36 chains. The datasets leave out cancelled targets, targets that turned out to be monomers (`A1`), and targets whose stoichiometry CASP has not released.
+
+### Files
+
+```text
+examples/
+  casp16/<target>.fasta          input FASTA for each CASP16 target
+  casp17/<target>.fasta          input FASTA for each CASP17 target
+  casp16_stoichiometry.csv       true stoichiometries for CASP16
+  casp17_stoichiometry.csv       true stoichiometries for CASP17
+  casp16.HT1.seq.txt, casp17.HT1.seq.txt          CASP sequence releases
+  casp16.targetlist.csv, casp17.targetlist.csv    Prediction Center target lists
+  build_casp_examples.py         regenerates the FASTA files and tables
+```
+
+Each FASTA has one record per distinct subunit, in the order of the CASP sequence release. Subunits are named A, B, C, … in that order, matching the letters in the true stoichiometry:
+
+```text
+>H0208_A dahAB, 328 residues
+MSVTSQTSSSGSAAVSDCHRGIIDISGPVPGYEWEPSMTTEPVRGRVW...
+>H0208_B dahAB, 318 residues
+MTGRQRTTVVAPDRPVQDATISQLTTRVWTVAIDGYRTIVVEGETGIV...
+```
+
+The stoichiometry tables have these columns:
+
+| Column | Meaning |
+|---|---|
+| `target` | Target ID, matching the FASTA file name |
+| `stoichiometry` | True stoichiometry, such as `A2B2C2` (subunit A × 2, B × 2, C × 2) |
+| `num_subunits` | Number of distinct subunits in the FASTA |
+| `description`, `organism` | Target description and source organism from the CASP sequence release |
+| `sequence_release_id` | ID of the target in the CASP sequence release |
+| `stoichiometry_source` | CASP target whose released oligomeric state gives the true stoichiometry |
+
+### Target IDs
+
+The CASP sequence releases do not always use the blind-phase ID. For example, the CASP16 release lists H0217 as H1217. The H/T letter and the last three digits identify a target, so the phase digit is swapped to get the blind-phase ID and the ID that carries the truth. This is the same mapping the stage modules use. Release entries with a suffix, such as `T1208s1` or `T1228v1`, are single subunits or variants of another target and are not included.
+
+### Usage
+
+Run any target as an input FASTA:
 
 ```bash
 stoiagent \
@@ -110,7 +158,7 @@ stoiagent \
   --description "dahAB"
 ```
 
-`examples/build_casp_examples.py` regenerates the FASTA files and tables from the CASP sequence releases (`casp1[67].HT1.seq.txt`) and the Prediction Center target lists (`casp1[67].targetlist.csv`).
+To rebuild the datasets after updating the target lists, run `python examples/build_casp_examples.py`.
 
 ## Notes
 
