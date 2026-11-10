@@ -126,7 +126,7 @@ setup_af3() {
   else
     need zstd
     mkdir -p "$dbs"
-    "$src/fetch_databases.sh" "$dbs"
+    bash "$src/fetch_databases.sh" "$dbs"  # upstream does not always mark it executable
     touch "$dbs/.stoiagent_complete"
   fi
 }
