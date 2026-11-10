@@ -10,16 +10,14 @@ import re
 import json
 import math
 import argparse
-from itertools import product
 from collections import Counter
-import string
-from pathlib import Path
 
 import pandas as pd
 from Bio import SeqIO
 from Bio.Align import PairwiseAligner
 
 from . import parsers
+from .utils import sort_subunits, linkify_citation
 
 # =========================================================
 # Config
@@ -41,33 +39,6 @@ SHARED_STRONG_EVALUE = 1e-3
 # Chain / stoichiometry utilities
 # =========================================================
 
-def generate_chain_ids(max_ids=500):
-    base = string.ascii_uppercase
-    if max_ids <= len(base):
-        return list(base[:max_ids])
-
-    extended = [''.join(p) for p in product(base, repeat=2)]
-    all_ids = list(base) + extended
-    return all_ids[:max_ids]
-
-PDB_CHAIN_IDS = generate_chain_ids(512)
-
-def sort_subunits(subunits):
-    order = {cid: i for i, cid in enumerate(PDB_CHAIN_IDS)}
-    return sorted(subunits, key=lambda x: order.get(x, 9999))
-
-def normalize_stoich(stoich: str) -> str:
-    s = stoich.replace(",", "").replace(" ", "")
-    matches = re.findall(r"([A-Z]{1,2})(\d+)", s)
-    if not matches:
-        raise ValueError(f"Invalid stoichiometry: {stoich}")
-    order = {cid: i for i, cid in enumerate(PDB_CHAIN_IDS)}
-    matches_sorted = sorted(matches, key=lambda m: order.get(m[0], 9999))
-    return "".join(f"{sym}{cnt}" for sym, cnt in matches_sorted)
-
-def simplest_stoich(subunits):
-    subs = sort_subunits(subunits)
-    return "".join(f"{s}1" for s in subs)
 
 def safe_float(x, default):
     try:
@@ -89,21 +60,6 @@ def safe_str(x, default=""):
     except Exception:
         return default
 
-
-def linkify_citation(citation: str) -> str:
-    """Convert a DOI or known record identifier to a citation URL."""
-    citation = str(citation).strip()
-    if re.fullmatch(r"\d{5,8}", citation):
-        return f"https://pubmed.ncbi.nlm.nih.gov/{citation}/"
-    if citation.upper().startswith("PMID:"):
-        pmid = re.sub(r"(?i)pmid:", "", citation).strip()
-        return f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-    if citation.upper().startswith("PDB"):
-        pdb_id = re.sub(r"(?i)pdb[:\s]*", "", citation).strip()
-        return f"https://www.rcsb.org/structure/{pdb_id}"
-    if "/" in citation and "." in citation and not citation.startswith("https://doi.org/"):
-        return f"https://doi.org/{citation}"
-    return citation
 
 def safe_neg_log10_evalue(x, floor=1e-300):
     try:

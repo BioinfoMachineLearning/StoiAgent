@@ -85,8 +85,11 @@ src/stoiagent/       Installable Python package and command-line pipeline
   stage1_agent.py    Stage-1 candidate generation and ranking
   af3_runner.py      AF3 jobs and ranking-score collection
   stage2_rerank.py   Fixed-shortlist reranking
-  agent_helper.py, casp17_three_level_common.py, D_core_three_level.py
-                    Evidence retrieval and research utilities
+  agent_common.py    Shared Stage-1 code: model loading, summary cache, validation
+  utils.py           Lightweight chain-ID and stoichiometry helpers
+  agent_helper.py    DiscoveryCache (RCSB/UniProt/PubMed retrieval)
+  casp17_three_level_common.py, D_core_three_level.py
+                    CASP17 research tools and the D research variant
   parsers.py         HH-suite and PDB parsing
 tests/               Focused pipeline tests
 pyproject.toml       Package metadata, dependencies, and CLI entry point

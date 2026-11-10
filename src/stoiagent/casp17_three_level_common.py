@@ -19,23 +19,32 @@ Level 2:
     full StoiAgent (templates/shared-template evidence + the same research
     actions + deterministic stoichiometry validation).
 
-This module imports the existing D implementation so model loading, CASP17
-sequence parsing, Qwen3-4B literature summarization, and stoichiometry parsing
-remain identical across levels.
+Model loading, CASP17 sequence parsing, Qwen3-4B literature summarization, and
+stoichiometry parsing come from agent_common/utils, shared with stage1_agent and D.
 """
 
 import copy
 import json
 import os
 import re
-import time
 from collections import Counter, defaultdict
-from datetime import datetime
 from urllib.parse import quote
 
 import requests
 
-from . import D_core_three_level as core
+from . import agent_common
+from .agent_common import (
+    compute_generation_budget,
+    filter_llm_reply,
+    has_candidate_header,
+    parse_candidate_stoichiometries,
+    reseed,
+    resolve_casp17_sequence_target,
+    validate_stoichiometry,
+)
+from .utils import generate_chain_ids, sort_subunits, normalize_stoich, simplest_stoich, strip_quotes as _strip_quotes
+# D's parse_confidences differs from stage1's (it does not accept 'support = <x>'); kept as-is.
+from .D_core_three_level import parse_confidences
 
 
 # ---------------------------------------------------------------------
@@ -136,7 +145,7 @@ def resolve_target_information_cutoff(
 # ---------------------------------------------------------------------
 
 def _canonical_subunit_ids(n):
-    ids = core.generate_chain_ids(max(1, n))
+    ids = generate_chain_ids(max(1, n))
     return ids[:n]
 
 
@@ -149,7 +158,7 @@ def build_target_info_without_templates(target_id, catalog):
     The target ID is retained internally but is never emitted by
     format_blinded_target_info().
     """
-    source_target_id = core.resolve_casp17_sequence_target(target_id, catalog)
+    source_target_id = resolve_casp17_sequence_target(target_id, catalog)
     records = list(catalog[source_target_id])
     if not records:
         raise RuntimeError(f"No CASP17 sequence records for {target_id}")
@@ -184,7 +193,7 @@ def format_blinded_target_info(target_info):
         lines.append(f"- Organism/source: {target_info['organism']}")
 
     lines.append("- Distinct protein subunits:")
-    for su in core.sort_subunits(target_info["subunits"].keys()):
+    for su in sort_subunits(target_info["subunits"].keys()):
         rec = target_info["subunits"][su]
         src_n = rec.get("source_subunit_number")
         if src_n is not None:
@@ -218,8 +227,8 @@ def subunit_lengths(target_info):
 
 def minimum_baseline_candidate(target_info):
     """Same simplest-complex baseline concept used by the full D/StoiAgent."""
-    subunits = core.sort_subunits(target_info["subunits"].keys())
-    baseline = core.simplest_stoich(subunits)
+    subunits = sort_subunits(target_info["subunits"].keys())
+    baseline = simplest_stoich(subunits)
     if len(subunits) == 1 and baseline == f"{subunits[0]}1":
         baseline = f"{subunits[0]}2"
     return baseline
@@ -250,7 +259,7 @@ def _candidate_output_policy(target_info):
 
 
 def build_input_only_messages(target_info):
-    subunits = core.sort_subunits(target_info["subunits"].keys())
+    subunits = sort_subunits(target_info["subunits"].keys())
     system = {
         "role": "system",
         "content": (
@@ -273,7 +282,7 @@ def build_input_only_messages(target_info):
 
 
 def build_tool_agent_messages(target_info, budgets):
-    subunits = core.sort_subunits(target_info["subunits"].keys())
+    subunits = sort_subunits(target_info["subunits"].keys())
     system = {
         "role": "system",
         "content": (
@@ -327,11 +336,6 @@ ACTION_RE = re.compile(
 )
 
 
-def _strip_quotes(s):
-    s = str(s).strip()
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
-        return s[1:-1]
-    return s
 
 
 def parse_actions(reply):
@@ -1110,11 +1114,11 @@ class ResearchToolExecutor:
             )
         url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
         try:
-            summary = core.get_or_generate_literature_summary(url, self.dc)
+            summary = agent_common.get_or_generate_literature_summary(url, self.dc)
         except Exception as e:
             return (
                 f"PubMed abstract summary failed for PMID {pmid} with fixed "
-                f"{core.SUMMARY_MODEL_KEY}: {e}"
+                f"{agent_common.SUMMARY_MODEL_KEY}: {e}"
             )
         return f"PMID={pmid}; {verification}.\n{summary}"
 
@@ -1168,7 +1172,7 @@ def parse_final_answer(reply):
     if not m:
         return None
     try:
-        return core.normalize_stoich(m.group(1))
+        return normalize_stoich(m.group(1))
     except Exception:
         return None
 
@@ -1208,8 +1212,8 @@ def run_simple_agent(
     Candidate repair is incremental: valid candidates from an imperfect list are
     retained, and the model is asked only to replace missing/invalid candidates.
     """
-    core.reseed(seed)
-    subunits = core.sort_subunits(target_info["subunits"].keys())
+    reseed(seed)
+    subunits = sort_subunits(target_info["subunits"].keys())
     lengths = subunit_lengths(target_info)
     baseline = minimum_baseline_candidate(target_info)
     seen_replies = set()
@@ -1245,7 +1249,7 @@ def run_simple_agent(
                 continue
             seen_this_reply.add(stoich)
 
-            valid, msg = core.validate_stoichiometry(stoich, subunits)
+            valid, msg = validate_stoichiometry(stoich, subunits)
             if not valid:
                 problems.append(f"{i}) {stoich}: {msg}")
                 continue
@@ -1272,7 +1276,7 @@ def run_simple_agent(
             )
             finalization_notice_added = True
 
-        max_new = core.compute_generation_budget(messages, llm)
+        max_new = compute_generation_budget(messages, llm)
         raw = llm.generate(
             messages,
             max_new_tokens=max_new,
@@ -1280,7 +1284,7 @@ def run_simple_agent(
             temperature=float(temperature),
             top_p=0.9,
         )
-        reply = core.filter_llm_reply(raw)
+        reply = filter_llm_reply(raw)
         final_reply = reply
 
         if reply in seen_replies:
@@ -1324,8 +1328,8 @@ def run_simple_agent(
                 continue
 
         candidate_final = parse_final_answer(reply)
-        candidates = core.parse_candidate_stoichiometries(reply)
-        confidences = core.parse_confidences(reply)
+        candidates = parse_candidate_stoichiometries(reply)
+        confidences = parse_confidences(reply)
 
         if actions:
             _append_message(messages, "assistant", reply)
@@ -1373,7 +1377,7 @@ def run_simple_agent(
             _, row_problems = merge_valid_candidates(candidates, confidences)
 
         # A malformed candidate section with no parseable rows still needs repair.
-        if core.has_candidate_header(reply) and not candidates:
+        if has_candidate_header(reply) and not candidates:
             row_problems.append(
                 "Candidates section could not be parsed; use numbered rows like "
                 "1) A1B1C1  support=0.80  support_evidence=..."
@@ -1384,7 +1388,7 @@ def run_simple_agent(
 
         final_problem = None
         if candidate_final:
-            valid, reason = core.validate_stoichiometry(candidate_final, subunits)
+            valid, reason = validate_stoichiometry(candidate_final, subunits)
             if not valid:
                 final_problem = f"Final Answer {candidate_final} is invalid: {reason}"
             elif candidate_final not in accepted:
