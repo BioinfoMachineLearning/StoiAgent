@@ -21,7 +21,13 @@ STAGE1_VARIANT = "S1_fasta"
 
 
 def _run(args: list[str], *, cwd: Path) -> None:
-    subprocess.run([sys.executable, *args], cwd=cwd, check=True)
+    # Each step prints its own error, so exit with its status instead of
+    # adding a traceback from this wrapper on top.
+    returncode = subprocess.run([sys.executable, *args], cwd=cwd).returncode
+    if returncode:
+        step = args[1] if args[:1] == ["-m"] else args[0]
+        print(f"stoiagent: {step} failed (exit status {returncode}).", file=sys.stderr)
+        sys.exit(returncode)
 
 
 def _write_sequence_catalog(path: Path, sequences: dict[str, str],
