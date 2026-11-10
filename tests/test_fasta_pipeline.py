@@ -7,11 +7,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from af3_runner import run_af3_shortlist
-import run_stoiagent
-from run_stoiagent import TARGET_ID, _write_sequence_catalog
-from stage2_rerank import parse_casp17_catalog
-from template_search import read_target_fasta, stockholm_to_a3m
+from stoiagent.af3_runner import run_af3_shortlist
+from stoiagent import run_stoiagent
+from stoiagent.run_stoiagent import TARGET_ID, _write_sequence_catalog
+from stoiagent.stage2_rerank import parse_casp17_catalog
+from stoiagent.template_search import read_target_fasta, stockholm_to_a3m
 
 
 class FastaPipelineTest(unittest.TestCase):
@@ -58,7 +58,7 @@ class FastaPipelineTest(unittest.TestCase):
                         }}],
                     }), encoding="utf-8")
 
-            with patch("af3_runner._run_af3", side_effect=fake_af3):
+            with patch("stoiagent.af3_runner._run_af3", side_effect=fake_af3):
                 csv_path = run_af3_shortlist(
                     fasta, ["A2", "A3", "A100"], root / "af3", {}, num_models=5
                 )
@@ -81,13 +81,13 @@ class FastaPipelineTest(unittest.TestCase):
 
             def fake_run(args, *, cwd):
                 commands.append(args)
-                if args[0].endswith("stage1_agent.py"):
+                if args[1] == "stoiagent.stage1_agent":
                     stage1 = output / "raw" / TARGET_ID / "stoichiometry" / f"{TARGET_ID}_subunit" / "Agent" / "Qwen3.6-27B" / "S1_fasta"
                     stage1.mkdir(parents=True)
                     (stage1 / f"{TARGET_ID}_phase1_topall_k15.out").write_text(
                         "1. A2 avg_conf=0.8\n2. A3 avg_conf=0.6\n", encoding="utf-8"
                     )
-                if args[0].endswith("stage2_rerank.py"):
+                if args[1] == "stoiagent.stage2_rerank":
                     stage2 = output / "raw" / TARGET_ID / "stoichiometry" / f"{TARGET_ID}_subunit" / "Agent" / "Qwen3.6-27B" / "S2_fasta_k5_af3"
                     stage2.mkdir(parents=True)
                     (stage2 / f"{TARGET_ID}_subunit_phase2_result.json").write_text(
@@ -95,8 +95,8 @@ class FastaPipelineTest(unittest.TestCase):
                         encoding="utf-8",
                     )
 
-            with patch("run_stoiagent._run", side_effect=fake_run), \
-                 patch("run_stoiagent.run_af3_shortlist", return_value=output / "scores.csv") as af3:
+            with patch("stoiagent.run_stoiagent._run", side_effect=fake_run), \
+                 patch("stoiagent.run_stoiagent.run_af3_shortlist", return_value=output / "scores.csv") as af3:
                 run_stoiagent.main([
                     "--input_fasta", str(fasta), "--config", str(config),
                     "--output_dir", str(output),
@@ -104,8 +104,8 @@ class FastaPipelineTest(unittest.TestCase):
             final = json.loads((output / "final_prediction.json").read_text())
             self.assertEqual(final["top1_stoichiometry"], "A3")
             self.assertEqual(af3.call_args.args[1], ["A2", "A3"])
-            self.assertEqual([Path(cmd[0]).name for cmd in commands], [
-                "build_single_finetune_json.py", "stage1_agent.py", "stage2_rerank.py"
+            self.assertEqual([cmd[1] for cmd in commands], [
+                "stoiagent.build_single_finetune_json", "stoiagent.stage1_agent", "stoiagent.stage2_rerank"
             ])
 
 
