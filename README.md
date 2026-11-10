@@ -1,8 +1,116 @@
 # StoiAgent
 
-StoiAgent predicts protein-complex stoichiometry from a FASTA file. It searches for structural templates, builds Stage-1 evidence, ranks candidate stoichiometries with an LLM, models the shortlist with AlphaFold 3 (AF3), and reranks the fixed shortlist. The final ranking is saved as `final_prediction.json`.
+StoiAgent predicts the stoichiometry of a protein complex, meaning how many copies of each subunit it contains, from the subunit sequences in a FASTA file. It searches for structural templates, uses an LLM to propose and rank candidate stoichiometries from the template and literature evidence, models the top candidates with AlphaFold 3 (AF3), and reranks them. The result is saved as `final_prediction.json`.
 
 ![StoiAgent overview: input subunit sequences and templates, Stage-1 evidence-guided candidate generation, Stage-2 AlphaFold 3-informed reranking, and final ranked predictions](imgs/StoiAgent_description.png)
+
+## Requirements
+
+- Linux with one NVIDIA GPU with **80 GB** of memory, such as an A100 80GB or H100 80GB
+- Docker with the NVIDIA Container Toolkit (or Singularity), to run AF3
+- 64 GB RAM, about 1 TB of free disk, and internet access
+
+See [System requirements](#system-requirements) for details.
+
+## Quick start
+
+**1. Install the environment.** You need `mamba`. If you don't have it, see [Installing Miniforge](#installing-miniforge).
+
+```bash
+git clone https://github.com/BioinfoMachineLearning/StoiAgent.git
+cd StoiAgent
+mamba env create -f environment.yml
+mamba activate stoiagent
+```
+
+**2. Download the databases** (about 700 GB; rerun the command if it is interrupted):
+
+```bash
+scripts/setup_databases.sh
+```
+
+**3. Finish setting up AF3.** Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and put `af3.bin` in `tools/alphafold3/models/`. Then build the AF3 Docker image:
+
+```bash
+docker build -t alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
+```
+
+**4. Run a prediction:**
+
+```bash
+stoiagent --input_fasta examples/casp16/H0208.fasta --output_dir results/H0208
+```
+
+The first run also downloads the LLM weights (about 63 GB).
+
+## Running StoiAgent
+
+### Input
+
+A FASTA file with one record per **distinct** protein subunit. StoiAgent names the subunits A, B, C, … in the order of the records. Identical sequences are merged, so a homomer can be given as a single record.
+
+```text
+>subunit_1
+MSVTSQTSSSGSAAVSDCHRGIIDISGPVPGYEWEPSMTTEPVRGRVW...
+>subunit_2
+MTGRQRTTVVAPDRPVQDATISQLTTRVWTVAIDGYRTIVVEGETGIV...
+```
+
+### Command
+
+```bash
+stoiagent \
+  --input_fasta complex.fasta \
+  --output_dir results/complex \
+  --description "Protein complex name" \
+  --organism "Organism name"
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--input_fasta` | required | Input FASTA |
+| `--output_dir` | required | Folder for all results. Use a separate folder for each complex. |
+| `--description` | FASTA file name | Short description of the complex, given to the LLM |
+| `--organism` | unspecified | Source organism, given to the LLM |
+| `--model` | `Qwen3.6-27B` | LLM backbone (see [LLM weights](#llm-weights)) |
+| `--k` | 5 | Number of candidates modeled with AF3 and reranked |
+| `--num_models` | 100 | AF3 models per candidate (a multiple of 5) |
+| `--config` | `config.json` | Configuration file (see [Configuration](#configuration)) |
+
+### Output
+
+`results/complex/final_prediction.json` holds the prediction:
+
+```json
+{
+  "top1_stoichiometry": "A1B1",
+  "ranked_stoichiometries": ["A1B1", "A2B2", "A1B2", "A2B1", "A3B3"],
+  "stage1_candidates": ["A1B1", "A2B2", "A2B1", "A1B2", "A3B3"],
+  "af3_scores_csv": ".../stoichiometry_results.csv",
+  "stage2_result": ".../H0001_subunit_phase2_result.json"
+}
+```
+
+`A2B1` means two copies of subunit A and one copy of subunit B. The output folder also contains the template searches, the AF3 models and the reasoning traces of both stages.
+
+## Example datasets
+
+`examples/` contains ready-to-run inputs for the stoichiometry-blind protein targets of CASP16 and CASP17, along with their true stoichiometries:
+
+| Dataset | Targets | Input FASTA files | True stoichiometries |
+|---|---|---|---|
+| CASP16 | 28 | `examples/casp16/` | `examples/casp16_stoichiometry.csv` |
+| CASP17 | 56 | `examples/casp17/` | `examples/casp17_stoichiometry.csv` |
+
+```bash
+stoiagent --input_fasta examples/casp17/H1312.fasta --output_dir results/H1312
+```
+
+See [CASP dataset details](#casp-dataset-details) for how the datasets were built.
+
+---
+
+# Reference
 
 ## System requirements
 
@@ -29,9 +137,9 @@ The GPU needs 80 GB because the default backbone, Qwen3.6-27B, takes about 54 GB
 
 Each prediction also writes its template searches, AF3 models and reasoning traces to its output directory.
 
-## Install StoiAgent
+## Installing Miniforge
 
-If `mamba` is not installed, install [Miniforge](https://github.com/conda-forge/miniforge), which provides it:
+[Miniforge](https://github.com/conda-forge/miniforge) provides `mamba`:
 
 ```bash
 curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
@@ -40,32 +148,20 @@ bash "Miniforge3-$(uname)-$(uname -m).sh"
 
 Accept the license, choose the install location (the default is `~/miniforge3`), and answer `yes` when asked whether to initialize the shell. Then open a new terminal, or run `source ~/.bashrc`, and check that `mamba --version` works.
 
-Then create the StoiAgent environment from this repository:
+## The environment
 
-```bash
-mamba env create -f environment.yml
-mamba activate stoiagent
-stoiagent --help
-```
-
-The environment includes Python, StoiAgent itself as an editable install, its Python dependencies from `pyproject.toml`, and the template-search programs `jackhmmer` (HMMER), `hhmake` and `hhsearch` (HH-suite). After pulling new changes, run `mamba env update -f environment.yml` to pick up new dependencies.
+`environment.yml` creates the `stoiagent` environment. It contains Python, StoiAgent itself as an editable install, its Python dependencies from `pyproject.toml`, and the template-search programs `jackhmmer` (HMMER), `hhmake` and `hhsearch` (HH-suite). After pulling new changes, run `mamba env update -f environment.yml` to pick up new dependencies.
 
 `python -m stoiagent` is equivalent to `stoiagent`. The optional Mistral backbone also needs `python -m pip install -e '.[mistral]'` inside the environment.
 
-## Set up databases and tools
+## Databases and tools
 
-Run the setup script from this folder. It downloads the HHsearch template database and the template metadata (about 33 GB), clones AlphaFold 3 (AF3) and downloads the AF3 databases (about 630 GB). Everything goes to the default locations below, so StoiAgent finds it without a configuration file.
-
-```bash
-scripts/setup_databases.sh
-```
-
-Downloads resume where they stopped, so rerun the script after an interruption. Options:
+`scripts/setup_databases.sh` downloads the HHsearch template database and the template metadata (about 33 GB), clones AF3 and downloads the AF3 databases (about 630 GB). Everything goes to the default locations below, so StoiAgent finds it without a configuration file. Downloads resume where they stopped. Options:
 
 - `--db-dir /big/disk/stoiagent_db` puts the databases on another disk and records their paths in `config.json` in this folder. StoiAgent reads that file automatically.
 - `--only templates` or `--only af3` sets up just one part.
 
-When it finishes, the script lists the steps it cannot do for you: the AF3 model parameters and the AF3 Docker image. These are described below. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
+When it finishes, the script lists the steps it cannot do for you: the AF3 model parameters and the AF3 Docker image. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
 
 ```text
 StoiAgent/
@@ -87,7 +183,7 @@ Git ignores `databases/`, `tools/` and `config.json`.
 
 ### AlphaFold 3
 
-The setup script clones AF3 into `tools/alphafold3` and downloads its databases to `databases/af3`. The rest follows the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md). The standard GPU installation requires Linux, an NVIDIA GPU with Compute Capability 8.0 or higher, Docker with NVIDIA GPU support, and at least 64 GB RAM.
+The setup script clones AF3 into `tools/alphafold3` and downloads its databases to `databases/af3`. The rest follows the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md):
 
 1. Install Docker, the NVIDIA driver, and the NVIDIA Container Toolkit as described in the official guide. Check `nvidia-smi` and that a GPU-enabled Docker container can see the GPU.
 2. Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and review their terms of use. Put them in `tools/alphafold3/models/`, so that the folder contains `af3.bin`. The parameters are not included in this repository.
@@ -101,9 +197,7 @@ StoiAgent mounts `tools/alphafold3/models` at `/root/models` and the AF3 databas
 
 ### Template search
 
-Template search runs `jackhmmer`, `hhmake` and `hhsearch`, which the `stoiagent` environment provides. It uses the UniRef90 file from the AF3 databases.
-
-The setup script downloads the HHsearch template database and the template metadata, which turns HHsearch hits into stoichiometry evidence:
+Template search runs `jackhmmer`, `hhmake` and `hhsearch`, which the `stoiagent` environment provides. It uses the UniRef90 file from the AF3 databases. The setup script downloads the HHsearch template database and the template metadata, which turns HHsearch hits into stoichiometry evidence:
 
 | File | Contents |
 |---|---|
@@ -128,11 +222,10 @@ StoiAgent loads its language models from Hugging Face. The weights download auto
 - **Storage:** the weights go to the Hugging Face cache, `~/.cache/huggingface` by default. To keep them on a larger disk, set `export HF_HOME=/big/disk/huggingface` before running StoiAgent, for example in `~/.bashrc`.
 - **Download in advance:** to download before the first run, for example on a login node with internet access, run `hf download Qwen/Qwen3.6-27B` and `hf download Qwen/Qwen3-4B-Instruct-2507` in the `stoiagent` environment.
 - **Gated models:** Gemma is gated. Accept its license on its Hugging Face page, then run `hf auth login` once with a Hugging Face access token. The Qwen models need no login.
-- **GPU memory:** a 24–32B backbone needs a large GPU, typically one 80 GB card.
 
-## Override default locations (optional)
+## Configuration
 
-To keep a resource outside this folder, for example a shared AF3 database, set only the paths that differ in `config.json` in this folder, which StoiAgent reads automatically. You can also pass another file with `--config`, which is then used instead of `config.json`. Relative paths are resolved against this folder. Set `STOIAGENT_HOME` to resolve the default locations against another folder instead.
+StoiAgent needs no configuration when everything is in its default location. To keep a resource outside this folder, for example a shared AF3 database, set only the paths that differ in `config.json` in this folder, which StoiAgent reads automatically. You can also pass another file with `--config`, which is then used instead of `config.json`. Relative paths are resolved against this folder. Set `STOIAGENT_HOME` to resolve the default locations against another folder instead.
 
 ```json
 {
@@ -145,27 +238,18 @@ To keep a resource outside this folder, for example a shared AF3 database, set o
 
 The available keys are `uniref90_path`, `hhdb_prefix`, `template_entity_fasta_dir`, `template_entity_metadata_dir`, `template_chain_atoms_dir`, `template_stoichiometry_csv`, `af3_program_path`, `af3_params_path`, `af3_db_path`, `af3_sif_path`, `af3_runtime` (`docker` or `singularity`), `af3_image`, `gpu_device`, `jackhmmer_binary`, `hhmake_binary`, `hhsearch_binary` and `search_cpu`. The defaults are in `src/stoiagent/config.py`.
 
-## Run from FASTA
+## How the pipeline works
 
-Supply one FASTA record per **distinct** protein subunit in A/B/C order. Repeated identical sequences are collapsed automatically, so a homomer can be supplied as one record. No HHR file is required: the package generates its own HHsearch results.
+1. **Template search.** For each subunit, `jackhmmer` searches UniRef90, `hhmake` builds a profile, and `hhsearch` finds PDB templates. The template metadata turns the hits into evidence such as the copy numbers seen in related structures.
+2. **Stage 1.** The LLM reasons over the template evidence, reads relevant literature on demand, and proposes and ranks candidate stoichiometries over 15 stochastic samples.
+3. **AF3.** AF3 models the top `--k` candidates that fit within its 5,000-residue and 26-chain limits. Candidates beyond those limits stay in the shortlist without AF3 scores.
+4. **Stage 2.** The LLM reranks exactly that shortlist, combining the Stage-1 evidence with the AF3 ranking scores.
 
-```bash
-stoiagent \
-  --input_fasta /path/to/complex.fasta \
-  --output_dir /path/to/results/complex \
-  --description "Protein complex name" \
-  --organism "Organism name"
-```
+AF3 ranking scores are structural-confidence evidence, not probabilities that a stoichiometry is biologically correct. The template-search and AF3 results are reused when you rerun in the same output folder, so use a fresh output folder if the databases, models or configuration change.
 
-`--description`, `--organism` and `--config` are optional. `--model` selects the LLM backbone (default `Qwen3.6-27B`), `--k` selects the Stage-1 shortlist size (default 5), and `--num_models` selects AF3 models per feasible candidate (default 100, a multiple of five). Run each target or configuration in its own output directory.
+## CASP dataset details
 
-Stage 1 performs 15 stochastic samples. AF3 evaluates Stage-1 candidates that fit within the 5,000-residue and 26-chain limits. Candidates beyond those limits remain in the Stage-2 shortlist without AF3 scores. Stage 2 reranks exactly that shortlist. `final_prediction.json` contains the top-1 prediction, complete ranking, and paths to detailed results. AF3 ranking scores are structural-confidence evidence, not probabilities that a stoichiometry is biologically correct.
-
-The template-search and AF3 output directories are reused when rerunning the same output folder. Use a fresh output directory if databases, models, or configuration change.
-
-## CASP16 and CASP17 datasets
-
-The `examples/` folder contains two benchmark datasets built from the stoichiometry-blind protein targets of CASP16 and CASP17. For these targets, CASP first released only the subunit sequences, with the stoichiometry withheld ("UNK"). In the next phase it released the stoichiometry of the experimental structure, and the datasets use that as the true answer.
+For the stoichiometry-blind targets, CASP first released only the subunit sequences, with the stoichiometry withheld ("UNK"). In the next phase it released the stoichiometry of the experimental structure, and the datasets use that as the true answer.
 
 | Dataset | Targets | Heteromers (`H`) | Homomers (`T`) | Target IDs | True stoichiometry from |
 |---|---|---|---|---|---|
@@ -173,8 +257,6 @@ The `examples/` folder contains two benchmark datasets built from the stoichiome
 | CASP17 | 56 | 43 | 13 | Phase 1: `H1xxx`, `T1xxx` | Phase 2: `H2xxx`, `T2xxx` |
 
 Heteromers have 2–9 distinct subunits, and complexes range from 2 to 36 chains. The datasets leave out cancelled targets, targets that turned out to be monomers (`A1`), and targets whose stoichiometry CASP has not released.
-
-### Files
 
 ```text
 examples/
@@ -187,16 +269,7 @@ examples/
   build_casp_examples.py         regenerates the FASTA files and tables
 ```
 
-Each FASTA has one record per distinct subunit, in the order of the CASP sequence release. Subunits are named A, B, C, … in that order, matching the letters in the true stoichiometry:
-
-```text
->H0208_A dahAB, 328 residues
-MSVTSQTSSSGSAAVSDCHRGIIDISGPVPGYEWEPSMTTEPVRGRVW...
->H0208_B dahAB, 318 residues
-MTGRQRTTVVAPDRPVQDATISQLTTRVWTVAIDGYRTIVVEGETGIV...
-```
-
-The stoichiometry tables have these columns:
+Each FASTA has one record per distinct subunit, in the order of the CASP sequence release, so the subunit letters match those in the true stoichiometry. The stoichiometry tables have these columns:
 
 | Column | Meaning |
 |---|---|
@@ -207,22 +280,7 @@ The stoichiometry tables have these columns:
 | `sequence_release_id` | ID of the target in the CASP sequence release |
 | `stoichiometry_source` | CASP target whose released oligomeric state gives the true stoichiometry |
 
-### Target IDs
-
-The CASP sequence releases do not always use the blind-phase ID. For example, the CASP16 release lists H0217 as H1217. The H/T letter and the last three digits identify a target, so the phase digit is swapped to get the blind-phase ID and the ID that carries the truth. This is the same mapping the stage modules use. Release entries with a suffix, such as `T1208s1` or `T1228v1`, are single subunits or variants of another target and are not included.
-
-### Usage
-
-Run any target as an input FASTA:
-
-```bash
-stoiagent \
-  --input_fasta examples/casp16/H0208.fasta \
-  --output_dir results/H0208 \
-  --description "dahAB"
-```
-
-To rebuild the datasets after updating the target lists, run `python examples/build_casp_examples.py`.
+The CASP sequence releases do not always use the blind-phase ID. For example, the CASP16 release lists H0217 as H1217. The H/T letter and the last three digits identify a target, so the phase digit is swapped to get the blind-phase ID and the ID that carries the truth. This is the same mapping the stage modules use. Release entries with a suffix, such as `T1208s1` or `T1228v1`, are single subunits or variants of another target and are not included. To rebuild the datasets after updating the target lists, run `python examples/build_casp_examples.py`.
 
 ## Notes
 
