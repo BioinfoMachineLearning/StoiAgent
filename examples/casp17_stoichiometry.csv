@@ -1,0 +1,57 @@
+target,stoichiometry,num_subunits,description,organism,sequence_release_id,stoichiometry_source
+H1312,A1B1C1,3,EXT1-EXT2-2BAV4,Human,H1312,H2312
+H1319,A2B2C2,3,Human astrovirus VA1 capsid spike - antibody 7C8 complex,,H1319,H2319
+H1321,A2B2C2,3,Human astrovirus VA1 capsid spike - antibody 2A2 complex,,H1321,H2321
+H1335,A1B1C1D1E1,5,HCMV Merlin gHgLgO-Fab complex,Human cytomegalovirus strain Merlin,H1335,H2335
+H1340,A3B3C3,3,Parahenipavirus F protein /antibody complex,Virus,H1340,H2340
+H1343,A1B1C1,3,Hepatitis C Virus sE2 CBH-4G Fab complex,Hepatitis C virus,H1343,H2343
+H1344,A1B1C1,3,HSV gD - HAB72,,H1344,H2344
+H1346,A1B1C1D1,4,REGN3753 Fab-Fab complex,homo sapiens,H1346,H2346
+H1347,A1B1C1D1,4,REGN15499 Fab-Fab complex,homo sapiens,H1347,H2347
+H1348,A1B1C1,3,gp130 antibody complex,homo sapiens,H1348,H2348
+H1349,A1B1C1,3,gp130 antibody complex,homo sapiens,H1349,H2349
+H1354,A3B3C3,3,hemagglutinin/antibody,Rousettus aegyptiacus,H1354,H2354
+H1355,A3B3C3,3,hemagglutinin/antibody,Rousettus aegyptiacus and influenza A,H1355,H2355
+H1356,A8B4,2,"A0A517IGU2, A0A517I5H8",Brevibacillus brevis,H1356,H2356
+H1359,A1B1C1D1E1F1,6,"A0AB35JLN2, A0AAE5SBF7, A0A2S4JD57, A0A0Q0BBX2, A0A1A6E3L8, A0ABT2VBN8",Pseudomonas syringae pv. syringae,H1359,H2359
+H1360,A1B1C1D1E1,5,"P69905, P68871, Haemophilus influenzae",Homo sapiens,H1360,H2360
+H1362,A1B1C1D1E1F1G1,7,HCMV with a FAB,hCMV/Homo sapiens,H1362,H2362
+H1373,A1B1C1,3,HSV-2 gD - HAB194,,H1373,H2373
+H1374,A1B1C1,3,HSV-2 gD - HAB13,,H1374,H2374
+H1379,A3B3C3,3,MeV F + Fab1,Measles morbilivirus,H1379,H2379
+H1380,A2B2C2,3,MeV H + Fab1,Measles morbilivirus,H1380,H2380
+H1381,A3B3C3,3,MeV F + Fab2,Measles morbilivirus,H1381,H2381
+H1382,A2B2C2,3,MeV H + Fab2,Measles morbilivirus,H1382,H2382
+H1388,A1B1,2,14-3-3 gamma bound to LARP1 derived phosphopeptide,,H1388,H2388
+H1389,A3B1C1,3,MeV F + Fab3,,H1389,H2389
+H1391,A3B3C3,3,MeV F + Fab4,Measles morbilivirus,H1391,H2391
+H1392,A2B1C1,3,MeV H + Fab3,Measles morbilivirus,H1392,H2392
+H1394,A3B3C3,3,LujoGP+Fab8,Lujo virus,H1394,H2394
+H1398,A1B1C1,3,LujoGP+Fab9,Lujo virus,H1398,H2398
+H1399,A1B1C1,3,LujoGP+Fab10,Lujo virus,H1399,H2399
+H1400,A1B1C1,3,LujoGP+Fab11,Lujo virus,H1400,H2400
+H1401,A1B1C1,3,LujoGP+Fab12,Lujo virus,H1401,H2401
+H1402,A1B1C1,3,LujoGP+Fab13,Lujo virus,H1402,H2402
+H1403,A1B1C1,3,LujoGP+Fab14,Lujo virus,H1403,H2403
+H1419,A1B1C1,3,"SARS-CoV-2 spike (P0DTC2) RBD in complex with mAb, human",SARS-CoV-2,H1419,H2419
+H1422,A2B2,2,SlpA,Clostridioides difficile,H1422,H2422
+H1423,A2B2,2,SlpA4del,Clostridioides difficile,H1423,H2423
+H1424,A3B3C6D18E3F3,6,9NA bacteriophage baseplate,9NA bacteriophage,H1424,H2424
+H1438,A1B3,2,CP-H5 complex,HsPV virus,H1438,H2438
+H1441,A1B1,2,"NDM-1(ID C7C422) : Nanobody17, Klebsiella pneumoniae",Camelus dromedarius,H1441,H2441
+H1442,A1B1C1,3,Fab-Ag-28355,,H1442,H2442
+H1443,A1B1C1,3,Fab-Ag-28367,,H1443,H2443
+H1444,A1B1C1,3,Fab-Ag-28368,,H1444,H2444
+T1313,A3,1,P66,Borrelia burgdorferi B31,T1313,T2313
+T1342,A3,1,Spike glycoprotein ectodomain,Ambecovirus Pgymn_15_Bra-2020,T1342,T2342
+T1358,A2,1,A7XXF0_BP234,Thermus virus P23-45 (Thermus thermophilus phage P23-45),T1358,T2358
+T1364,A3,1,A0A178UXU6,Arabidopsis thaliana,T1364,T2364
+T1371,A2,1,Q8TW57,Methanopyrus kandleri (strain AV19 / DSM 6324 / JCM 9639 / NBRC 100938),T1371,T2371
+T1393,A2,1,GLE_4604,Lysobacter enzymogenes,T1393,T2393
+T1404,A17,1,Cap19,Pseudomonas aeruginosa,T1404,T2404
+T1406,A2,1,C0V70_15230,Bacteriovorax stolpii,T1406,T2406
+T1416,A3,1,CotH,Bacteroides salyersiae,T1416,T2416
+T1417,A3,1,APR53_05355,,T1417,T2417
+T1421,A3,1,YP_007379091.1,Virus,T1421,T2421
+T1430,A9,1,TriPep,Rational design,T1430,T2430
+T1440,A2,1,Transcriptional regulator HilD,Salmonella typhimurium,T1440,T2440

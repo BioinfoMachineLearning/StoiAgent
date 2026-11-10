@@ -1,0 +1,29 @@
+target,stoichiometry,num_subunits,description,organism,sequence_release_id,stoichiometry_source
+H0208,A1B1,2,dahAB,,H0208,H1208
+H0215,A1B1,2,mNeonGreen with bound nanobody,lancelet + alpaca,H0215,H1215
+H0217,A2B2C2D2E2F2,6,AcP10_eIF2B_complex,Human_mammalian_coronavirus,H1217,H1217
+H0220,A1B4,2,BoDV-1 Replication complex,Borna disease virus 1 (BoDV-1),H1220,H1220
+H0222,A1B1C1,3,RSV G - Fab 2B11 complex,,H1222,H1222
+H0223,A1B1C1,3,RSV G - Fab 1G8 complex,,H1223,H1223
+H0225,A1B1C1,3,RSV G - Fab 1G1 complex,,H1225,H1225
+H0227,A1B6,2,LetA (P0AD03) and LetB (P76272),Escherichia coli,H1227,H1227
+H0229,A1B1,2,ORF61/A3A,,H1229,H1229
+H0230,A1B1,2,ORF61/A3B,,H1230,H1230
+H0232,A2B2,2,Human astrovirus 2 capsid spike - antibody scFv 4B6 complex,,H1232,H1232
+H0233,A2B2C2,3,Human astrovirus 1 capsid spike - antibody Fab 3H4 complex,,H1233,H1233
+H0236,A3B6,2,Haloferax tailed virus 1,virus,H1236,H1236
+H0244,A2B2C2,3,BJCNb48,Trypanosoma brucei,H1244,H1244
+H0245,A1B1,2,FUNcomplex,C. elegans,H1245,H1245
+H0258,A1B2,2,LRRK2/14-3-3 complex,human,H1258,H1258
+H0265,A9B18,2,TLR4 TIR domain (O00206) : MAL TIR domain (P58753) complex,Homo sapiens,H1265,H1265
+H0267,A2B2,2,XauSPARDA,Xanthobacter autotrophicus Py2,H1267,H1267
+H0272,A1B1C1D1E1F1G1H1I1,9,dystrophin-glycoprotein complex (DGC),Oryctolagus cuniculus (Rabbit),H1272,H1272
+T0206,A2,1,Porcine astrovirus 4 capsid spike,Porcine astrovirus 4,T1206,T1206
+T0218,A2,1,Cry26Aa,Bacillus thuringiensis serovar finitimus,T1218,T1218
+T0234,A3,1,YP_010355913.1,virus,T1234,T1234
+T0235,A6,1,A0A410N6V5.2,,T1235,T1235
+T0237,A4,1,Bd3071,,T1237,T1237
+T0240,A3,1,Bd3442,,T1240,T1240
+T0257,A3,1,P13390,Enterobacteria phage T5,T1257,T1257
+T0259,A3,1,AZI86_00190,,T1259,T1259
+T0270,A6,1,HtrA,Borreliella burgdorferi,T1270,T1270

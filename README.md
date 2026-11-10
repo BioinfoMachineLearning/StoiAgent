@@ -99,6 +99,19 @@ Stage 1 performs 15 stochastic samples. AF3 evaluates Stage-1 candidates that fi
 
 The template-search and AF3 output directories are reused when rerunning the same output folder. Use a fresh output directory if databases, models, or configuration change.
 
+## CASP16 and CASP17 examples
+
+`examples/casp16/` (28 targets) and `examples/casp17/` (56 targets) contain one input FASTA per stoichiometry-blind CASP protein target, with one record per distinct subunit in A/B/C order. Cancelled targets, targets that turned out to be monomers, and targets whose stoichiometry CASP has not released are excluded. CASP16 targets use their Phase-0 IDs (`H0xxx`/`T0xxx`) and CASP17 targets their Phase-1 IDs (`H1xxx`/`T1xxx`). `examples/casp16_stoichiometry.csv` and `examples/casp17_stoichiometry.csv` list each target's true stoichiometry, taken from the oligomeric state CASP released in the next phase, along with its description and organism.
+
+```bash
+stoiagent \
+  --input_fasta examples/casp16/H0208.fasta \
+  --output_dir results/H0208 \
+  --description "dahAB"
+```
+
+`examples/build_casp_examples.py` regenerates the FASTA files and tables from the CASP sequence releases (`casp1[67].HT1.seq.txt`) and the Prediction Center target lists (`casp1[67].targetlist.csv`).
+
 ## Notes
 
 Advanced research interfaces remain available with `python -m stoiagent.stage1_agent` and `python -m stoiagent.stage2_rerank`. The end-to-end command creates a local sequence catalog from the FASTA, so no CASP17 input file is needed. Its internal target ID is withheld from LLM prompts. For historical benchmark evaluation, supply the original target-release cutoffs and sequence release file to the standalone stage modules.
