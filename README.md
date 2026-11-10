@@ -6,17 +6,17 @@ StoiAgent predicts protein-complex stoichiometry from a FASTA file. It searches 
 
 ## Install StoiAgent
 
-Use a Linux machine with a GPU suitable for the selected LLM and AF3. From this repository:
+Use a Linux machine with a GPU suitable for the selected LLM and AF3. Install [Miniforge](https://github.com/conda-forge/miniforge), which provides `mamba`, then from this repository run:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
+mamba env create -f environment.yml
+mamba activate stoiagent
 stoiagent --help
 ```
 
-`python -m stoiagent` is equivalent to `stoiagent`. The optional Mistral backbone requires `python -m pip install -e '.[mistral]'`. StoiAgent's Python dependencies are declared in `pyproject.toml`; `requirements.txt` is a convenience alias for an editable install.
+The environment includes Python, StoiAgent itself as an editable install, its Python dependencies from `pyproject.toml`, and the template-search programs `jackhmmer` (HMMER), `hhmake` and `hhsearch` (HH-suite). After pulling new changes, run `mamba env update -f environment.yml` to pick up new dependencies.
+
+`python -m stoiagent` is equivalent to `stoiagent`. The optional Mistral backbone also needs `python -m pip install -e '.[mistral]'` inside the environment.
 
 ## Set up databases and tools
 
@@ -31,7 +31,7 @@ Downloads resume where they stopped, so rerun the script after an interruption. 
 - `--db-dir /big/disk/stoiagent_db` puts the databases on another disk and records their paths in `config.json` in this folder. StoiAgent reads that file automatically.
 - `--only templates` or `--only af3` sets up just one part.
 
-When it finishes, the script lists the steps it cannot do for you: the AF3 model parameters, the AF3 Docker image and the HMMER/HH-suite programs. These are described below. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
+When it finishes, the script lists the steps it cannot do for you: the AF3 model parameters and the AF3 Docker image. These are described below. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
 
 ```text
 StoiAgent/
@@ -67,7 +67,7 @@ StoiAgent mounts `tools/alphafold3/models` at `/root/models` and the AF3 databas
 
 ### Template search
 
-Template search needs `jackhmmer` (HMMER) and `hhmake` and `hhsearch` (HH-suite) on the `PATH`. Install them with your system package manager or by following their upstream instructions, and check that all three run. It uses the UniRef90 file from the AF3 databases.
+Template search runs `jackhmmer`, `hhmake` and `hhsearch`, which the `stoiagent` environment provides. It uses the UniRef90 file from the AF3 databases.
 
 The setup script downloads the HHsearch template database and the template metadata, which turns HHsearch hits into stoichiometry evidence:
 

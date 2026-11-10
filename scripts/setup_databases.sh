@@ -179,7 +179,7 @@ if (( DO_AF3 )) && ! { command -v docker >/dev/null && docker image inspect alph
 fi
 for tool in jackhmmer hhmake hhsearch; do
   if ! command -v "$tool" >/dev/null; then
-    echo "- Install $tool (HMMER / HH-suite) and put it on the PATH."
+    echo "- $tool not found: activate the stoiagent environment (mamba activate stoiagent)."
     missing=1
   fi
 done

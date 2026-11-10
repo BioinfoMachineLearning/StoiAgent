@@ -1,0 +1,18 @@
+# Conda/mamba environment for StoiAgent:
+#   mamba env create -f environment.yml
+#   mamba activate stoiagent
+name: stoiagent
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - pip
+  # Template search: jackhmmer (HMMER), hhmake and hhsearch (HH-suite)
+  - hmmer
+  - hhsuite
+  # Used by scripts/setup_databases.sh and AlphaFold 3's fetch_databases.sh
+  - wget
+  - zstd
+  - pip:
+      - -e .
