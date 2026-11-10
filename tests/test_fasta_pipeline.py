@@ -74,8 +74,6 @@ class FastaPipelineTest(unittest.TestCase):
             root = Path(directory)
             fasta = root / "complex.fasta"
             fasta.write_text(">A\nACDE\n", encoding="utf-8")
-            config = root / "config.json"
-            config.write_text("{}", encoding="utf-8")
             output = root / "results"
             commands = []
 
@@ -98,7 +96,7 @@ class FastaPipelineTest(unittest.TestCase):
             with patch("stoiagent.run_stoiagent._run", side_effect=fake_run), \
                  patch("stoiagent.run_stoiagent.run_af3_shortlist", return_value=output / "scores.csv") as af3:
                 run_stoiagent.main([
-                    "--input_fasta", str(fasta), "--config", str(config),
+                    "--input_fasta", str(fasta),
                     "--output_dir", str(output),
                 ])
             final = json.loads((output / "final_prediction.json").read_text())
@@ -107,6 +105,34 @@ class FastaPipelineTest(unittest.TestCase):
             self.assertEqual([cmd[1] for cmd in commands], [
                 "stoiagent.build_target_json", "stoiagent.stage1_agent", "stoiagent.stage2_rerank"
             ])
+
+    def test_default_config_points_inside_stoiagent_folder(self):
+        from stoiagent.config import load_config
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            override = home / "override.json"
+            override.write_text(json.dumps({
+                "af3_db_path": "/data/af3", "template_label_csv": "",
+                "stoichiometry_pdb_fasta_folder": "custom/fasta",
+            }), encoding="utf-8")
+            with patch.dict("os.environ", {"STOIAGENT_HOME": str(home)}):
+                default = load_config()
+                config = load_config(override)
+        self.assertEqual(default["hhdb_prefix"], str(home / "databases/pdb70/pdb70"))
+        self.assertEqual(default["af3_program_path"], str(home / "tools/alphafold3"))
+        self.assertEqual(config["af3_db_path"], "/data/af3")
+        self.assertEqual(config["template_label_csv"], str(home / "databases/templates/labels.csv"))
+        self.assertEqual(config["template_fasta_dir"], str(home / "custom/fasta"))
+
+    def test_missing_resources_are_reported_with_their_keys(self):
+        from stoiagent.config import load_config, require_paths
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict("os.environ", {"STOIAGENT_HOME": directory}):
+                config = load_config()
+            with self.assertRaises(FileNotFoundError) as caught:
+                require_paths(config, ["hhdb_prefix", "af3_db_path"])
+        self.assertIn("hhdb_prefix", str(caught.exception))
+        self.assertIn("af3_db_path", str(caught.exception))
 
 
 if __name__ == "__main__":

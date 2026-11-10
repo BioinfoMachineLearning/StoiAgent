@@ -17,6 +17,7 @@ from Bio import SeqIO
 from Bio.Align import PairwiseAligner
 
 from . import parsers
+from .config import load_config, require_paths
 from .utils import sort_subunits, linkify_citation
 
 # =========================================================
@@ -1230,8 +1231,8 @@ def main(argv=None):
     )
     parser.add_argument("--input_fasta", required=True,
                         help="Multi-record FASTA containing the target's distinct protein subunits.")
-    parser.add_argument("--config", required=True,
-                        help="JSON with search database, binary and template metadata paths.")
+    parser.add_argument("--config", default=None,
+                        help="Optional JSON overriding the default database and binary locations.")
     parser.add_argument("--workdir", required=True,
                         help="Directory for generated search intermediates.")
     parser.add_argument("--output_json", required=True)
@@ -1248,28 +1249,29 @@ def main(argv=None):
     if args.template_release_cutoff and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.template_release_cutoff):
         parser.error("--template_release_cutoff must be YYYY-MM-DD")
 
-    with open(args.config, encoding="utf-8") as f:
-        config = json.load(f)
-    def setting(*keys):
-        for key in keys:
-            if config.get(key):
-                return config[key]
-        parser.error(f"Missing config key: {' or '.join(keys)}")
+    config = load_config(args.config)
+    try:
+        require_paths(config, [
+            "uniref90_path", "hhdb_prefix", "template_fasta_dir",
+            "template_pdb_json_dir", "template_atom_dir", "template_label_csv",
+        ])
+    except FileNotFoundError as e:
+        parser.error(str(e))
 
     from .template_search import generate_template_search_inputs
     subunit_inputs = generate_template_search_inputs(
         args.input_fasta, args.workdir,
-        uniref90_db=setting("uniref90_path"),
-        hhdb_prefix=setting("hhdb_prefix"),
-        jackhmmer_binary=config.get("jackhmmer_binary", "jackhmmer"),
-        hhmake_binary=config.get("hhmake_binary", "hhmake"),
-        hhsearch_binary=config.get("hhsearch_binary", "hhsearch"),
-        cpu=int(config.get("search_cpu", 8)),
+        uniref90_db=config["uniref90_path"],
+        hhdb_prefix=config["hhdb_prefix"],
+        jackhmmer_binary=config["jackhmmer_binary"],
+        hhmake_binary=config["hhmake_binary"],
+        hhsearch_binary=config["hhsearch_binary"],
+        cpu=int(config["search_cpu"]),
     )
-    template_fasta_dir = setting("template_fasta_dir", "stoichiometry_pdb_fasta_folder")
-    template_pdb_json_dir = setting("template_pdb_json_dir")
-    template_atom_dir = setting("template_atom_dir")
-    template_label_csv = setting("template_label_csv", "pdb_stoichiometry_database")
+    template_fasta_dir = config["template_fasta_dir"]
+    template_pdb_json_dir = config["template_pdb_json_dir"]
+    template_atom_dir = config["template_atom_dir"]
+    template_label_csv = config["template_label_csv"]
 
     training_label_df = pd.read_csv(template_label_csv)
     required_columns = {"pdb_id", "final_stoichiometry"}

@@ -24,3 +24,7 @@ stage2_baseline_homo_max/
 *.pt
 *.pth
 *.bin
+
+# Downloaded databases, model parameters and tools (default locations)
+databases/
+tools/

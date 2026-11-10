@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from .af3_runner import run_af3_shortlist
+from .config import load_config
 from .stage2_rerank import parse_stage1_ranked
 from .template_search import read_target_fasta
 
@@ -40,8 +41,9 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input_fasta", required=True, type=Path,
                         help="Target FASTA with one record per distinct protein subunit.")
-    parser.add_argument("--config", required=True, type=Path,
-                        help="Paths to local search databases, template metadata, and AlphaFold3 installation.")
+    parser.add_argument("--config", type=Path, default=None,
+                        help="Optional JSON overriding the default database and AlphaFold3 locations "
+                             "inside the StoiAgent folder.")
     parser.add_argument("--output_dir", required=True, type=Path)
     parser.add_argument("--description", default=None,
                         help="Protein/complex description; defaults to the FASTA filename stem.")
@@ -57,8 +59,10 @@ def main(argv=None) -> None:
     source = args.input_fasta.resolve()
     if not source.is_file():
         parser.error(f"FASTA not found: {source}")
-    config_path = args.config.resolve()
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config_path = args.config.resolve() if args.config else None
+    if config_path and not config_path.is_file():
+        parser.error(f"Config not found: {config_path}")
+    config = load_config(config_path)
     out = args.output_dir.resolve()
     out.mkdir(parents=True, exist_ok=True)
     sequences = read_target_fasta(source)
@@ -74,7 +78,8 @@ def main(argv=None) -> None:
     target_json = out / f"{TARGET_ID}.json"
     _run([
         "-m", "stoiagent.build_target_json",
-        "--input_fasta", str(canonical_fasta), "--config", str(config_path),
+        "--input_fasta", str(canonical_fasta),
+        *(["--config", str(config_path)] if config_path else []),
         "--workdir", str(out / "template_search"),
         "--output_json", str(target_json), "--protein_id", TARGET_ID,
     ], cwd=out)

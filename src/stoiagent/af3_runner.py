@@ -9,6 +9,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from .config import require_paths
 from .template_search import read_target_fasta
 
 
@@ -60,10 +61,12 @@ def _load_common_data(path: Path) -> dict:
 
 
 def _run_af3(config: dict, output: Path, job_name: str) -> None:
+    runtime = config.get("af3_runtime", "docker")
+    require_paths(config, ["af3_program_path", "af3_params_path", "af3_db_path"]
+                  + (["af3_sif_path"] if runtime == "singularity" else []))
     program = Path(config["af3_program_path"]).resolve()
     params = Path(config["af3_params_path"]).resolve()
     database = Path(config["af3_db_path"]).resolve()
-    runtime = config.get("af3_runtime", "docker")
     common_args = [
         "python", "run_alphafold.py",
         f"--json_path=/root/af_output/input_jsons/{job_name}.json",
