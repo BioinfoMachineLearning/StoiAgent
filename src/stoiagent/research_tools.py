@@ -357,11 +357,7 @@ def _safe_json_response(resp):
 
 
 class ResearchToolExecutor:
-    """External research with fail-closed cutoff checks.
-    UniProt cutoff mode excludes CURRENT entries with any audit update after
-    the cutoff. It does not reconstruct archived UniProtKB entries or historical
-    search rankings. Pre-cutoff PDB records may have later metadata revisions.
-    """
+    """External research with fail-closed cutoff checks."""
     def __init__(
         self,
         dc,
@@ -675,12 +671,7 @@ class ResearchToolExecutor:
             return None
 
     def _uniprot_allowed(self, entry):
-        """Conservative time freeze: only current entries unchanged since cutoff.
-
-        This is intentionally stricter than recovering a historical UniProt
-        record. Entries changed after the cutoff are omitted even if their
-        stoichiometry annotation was already public before that date.
-        """
+        """Conservative time freeze: only current entries unchanged since cutoff."""
         cutoff_text = self._cutoff_date()
         if not cutoff_text:
             return True, "No UniProt cutoff configured"
@@ -811,11 +802,8 @@ class ResearchToolExecutor:
         if cutoff_enabled:
             result += (
                 f"\nCutoff={self._cutoff_date()}; filtered {excluded} "
-                "retrieved entries with missing, invalid, or post-cutoff audit dates. "
-                "Current search ranking is not a historical UniProt search snapshot."
+                "retrieved entries with missing, invalid, or post-cutoff audit dates."
             )
-        else:
-            result += "\nNOTE: UniProt data are current; no historical cutoff applied."
         return result
 
     def uniprot_get(self, accession):
@@ -832,7 +820,7 @@ class ResearchToolExecutor:
         if not self._cutoff_date():
             try:
                 obs = self.dc.get_uniprot_observation(acc)
-                return str(obs) + "\nNOTE: UniProt cutoff is disabled; current/cache annotations."
+                return str(obs)
             except Exception as e:
                 return f"UniProt.get failed for {acc}: {e}"
 

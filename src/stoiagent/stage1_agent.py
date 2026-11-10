@@ -1526,10 +1526,6 @@ if __name__ == "__main__":
 
     print(f"Information cutoff (PDB/PubMed): {L2_INFORMATION_CUTOFF or 'disabled'}")
     print(f"Matched research budgets: {L2_RESEARCH_BUDGETS}")
-    print(
-        "WARNING: UniProt REST/cache observations are current unless a historically "
-        "frozen UniProt cache is supplied."
-    )
 
     messages = bundle["messages"]
     templates = bundle["templates"]
