@@ -90,6 +90,23 @@ The setup script downloads the HHsearch template database and the template metad
 | `chain_atoms/` | Coordinates of each template chain, named after its HHsearch hit (PDB ID plus chain ID), such as `101MA.atom.gz`. They are used to recover each hit's sequence. |
 | `pdb_stoichiometry.csv` | The assembly stoichiometry (`final_stoichiometry`) and `release_date` of each PDB entry. |
 
+### LLM weights
+
+StoiAgent loads its language models from Hugging Face. The weights download automatically on the first run and are reused afterwards.
+
+| Model | `--model` | Role | Download |
+|---|---|---|---|
+| [Qwen3.6-27B](https://huggingface.co/Qwen/Qwen3.6-27B) | `Qwen3.6-27B` (default) | Stage 1 and Stage 2 reasoning | about 55 GB |
+| [Qwen3-4B-Instruct-2507](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507) | always used | Literature summaries | about 8 GB |
+| [Gemma-3-27B-it](https://huggingface.co/google/gemma-3-27b-it) | `Gemma-3-27B-it` | Alternative backbone | about 55 GB |
+| [OLMo-2-32B-Instruct](https://huggingface.co/allenai/OLMo-2-0325-32B-Instruct) | `OLMo-2-32B-Instruct` | Alternative backbone | about 65 GB |
+| [Mistral-Small-3.2-24B](https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506) | `Mistral-Small-3.2-24B` | Alternative backbone, needs the `mistral` extra | about 50 GB |
+
+- **Storage:** the weights go to the Hugging Face cache, `~/.cache/huggingface` by default. To keep them on a larger disk, set `export HF_HOME=/big/disk/huggingface` before running StoiAgent, for example in `~/.bashrc`.
+- **Download in advance:** to download before the first run, for example on a login node with internet access, run `hf download Qwen/Qwen3.6-27B` and `hf download Qwen/Qwen3-4B-Instruct-2507` in the `stoiagent` environment.
+- **Gated models:** Gemma is gated. Accept its license on its Hugging Face page, then run `hf auth login` once with a Hugging Face access token. The Qwen models need no login.
+- **GPU memory:** a 24–32B backbone needs a large GPU, typically one 80 GB card.
+
 ## Override default locations (optional)
 
 To keep a resource outside this folder, for example a shared AF3 database, set only the paths that differ in `config.json` in this folder, which StoiAgent reads automatically. You can also pass another file with `--config`, which is then used instead of `config.json`. Relative paths are resolved against this folder. Set `STOIAGENT_HOME` to resolve the default locations against another folder instead.
