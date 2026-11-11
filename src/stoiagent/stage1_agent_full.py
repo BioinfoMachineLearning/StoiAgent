@@ -110,7 +110,9 @@ def parse_confidences(reply_text):
                 continue
 
             score = max(0.0, min(1.0, score))
-            confs[stoich] = score
+            # Keep the first row of a duplicated candidate, as the merge step
+            # does; a later duplicate must not overwrite its support.
+            confs.setdefault(stoich, score)
     return confs
 
 

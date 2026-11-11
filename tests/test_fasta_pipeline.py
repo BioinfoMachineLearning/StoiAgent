@@ -83,6 +83,23 @@ class FastaPipelineTest(unittest.TestCase):
             self.assertIn("--db_dir=/public_databases", command)
             self.assertFalse(any("/root/" in part for part in command))
 
+    def test_stage1_duplicate_candidate_keeps_first_row(self):
+        # Sample 07 of the H0208 run listed A1B1 twice; the merge step keeps
+        # the first row, so its support and evidence must come from that row.
+        from stoiagent.stage1_agent import parse_candidate_support_evidence, parse_confidences
+        from stoiagent.stage1_agent_full import parse_confidences as parse_confidences_full
+        reply = (
+            "Candidates:\n"
+            "1) A1B1  support=0.85  support_evidence=Consistent A1B1 pattern in shared templates\n"
+            "2) A2B2  support=0.10  support_evidence=Possible dimer of heterodimers\n"
+            "5) A1B1  support=0.01  support_evidence=Baseline candidate for comparison\n"
+            "Final Answer: A1B1\n"
+        )
+        self.assertEqual(parse_confidences(reply), {"A1B1": 0.85, "A2B2": 0.10})
+        self.assertEqual(parse_confidences_full(reply), {"A1B1": 0.85, "A2B2": 0.10})
+        self.assertEqual(parse_candidate_support_evidence(reply)["A1B1"],
+                         "Consistent A1B1 pattern in shared templates")
+
     def test_target_id_follows_fasta_name(self):
         self.assertEqual(target_id_for(Path("examples/casp16/H0208.fasta")), "H0208")
         self.assertEqual(target_id_for(Path("t1312.fasta")), "T1312")

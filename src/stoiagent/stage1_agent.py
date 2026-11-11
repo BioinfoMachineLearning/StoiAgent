@@ -121,13 +121,16 @@ def parse_confidences(reply_text):
                 continue
 
             score = max(0.0, min(1.0, score))
-            confs[stoich] = score
+            # Keep the first row of a duplicated candidate, as the merge step
+            # does; a later duplicate must not overwrite its support.
+            confs.setdefault(stoich, score)
     return confs
 
 
 def parse_candidate_support_evidence(reply_text):
     """Return stoichiometry -> model-provided support_evidence text."""
     evidence = {}
+    seen = set()
     for line in reply_text.splitlines():
         line = line.strip()
         m = re.search(rf"^\s*\d+\s*[\.\)]\s*{STOICH_RE}\b(?P<rest>.*)$", line)
@@ -137,6 +140,10 @@ def parse_candidate_support_evidence(reply_text):
             stoich = normalize_stoich(m.group(1))
         except ValueError:
             continue
+        # Only the first row of a duplicated candidate counts (see parse_confidences).
+        if stoich in seen:
+            continue
+        seen.add(stoich)
         rest = m.group("rest") or ""
         em = re.search(r"\bsupport_evidence\s*=\s*(.+?)\s*$", rest, flags=re.IGNORECASE)
         if em:
