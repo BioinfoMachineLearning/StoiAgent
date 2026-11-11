@@ -73,12 +73,24 @@ extract_flat() {  # extract_flat ARCHIVE DIR: unpack the archive's files directl
   mv "$dir.tmp" "$dir"
 }
 
+hhsuitedb_complete() {  # hhsuitedb_complete DIR: hhsearch needs the a3m, hhm and cs219 parts
+  local dir="$1" part ext
+  for part in a3m hhm cs219; do
+    for ext in ffdata ffindex; do
+      [[ -s "$dir/hhsuitedb3_$part.$ext" ]] || return 1
+    done
+  done
+}
+
 setup_hhsuitedb() {
   local dir="$DB_DIR/sort90_hhsuitedb"
   log "HHsearch template database -> $dir"
-  if [[ -s "$dir/hhsuitedb3_hhm.ffindex" && ! -e "$DB_DIR/sort90_hhsuitedb.tar.gz" ]]; then
+  if hhsuitedb_complete "$dir" && [[ ! -e "$DB_DIR/sort90_hhsuitedb.tar.gz" ]]; then
     echo "already present"
     return
+  fi
+  if [[ -d "$dir" ]]; then
+    echo "incomplete (an older download had only the hhm part); downloading again"
   fi
   mkdir -p "$DB_DIR"
   [[ -s "$DB_DIR/sort90_hhsuitedb.tar.gz" ]] || \
@@ -86,6 +98,10 @@ setup_hhsuitedb() {
   echo "Extracting sort90_hhsuitedb ..."
   extract_flat "$DB_DIR/sort90_hhsuitedb.tar.gz" "$dir"
   rm -f "$DB_DIR/sort90_hhsuitedb.tar.gz"
+  if ! hhsuitedb_complete "$dir"; then
+    echo "The downloaded HHsearch database lacks the hhsuitedb3_a3m, _hhm or _cs219 files: $dir" >&2
+    exit 1
+  fi
 }
 
 setup_templates() {
