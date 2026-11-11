@@ -96,7 +96,125 @@ stoiagent \
 
 `A2B1` means two copies of subunit A and one copy of subunit B. `top1_stoichiometry` is the prediction, `ranked_stoichiometries` is the final Stage-2 order of the shortlist, and `stage1_candidates` is the Stage-1 shortlist that AF3 modeled, in Stage-1 order.
 
-See [Output files](#output-files) for everything else the run writes.
+All files of a run go to `--output_dir`. The target is named after the input FASTA (`H0208.fasta` → `H0208`); FASTA names that are not an `H` or `T` followed by four digits are named `H0001` instead. The tree below is from `--input_fasta examples/casp16/H0208.fasta --num_models 25`, with the default `--model Qwen3.6-27B` and `--k 5`:
+
+```text
+results/H0208/
+  final_prediction.json              final answer (see above)
+  H0208.fasta                        subunits renamed A, B, ... (duplicates merged)
+  target_sequences.fasta             sequences with the description and organism given to the LLM
+  H0208.json                         template evidence assembled for Stage 1
+  template_search/                   per-subunit template search
+  raw/H0208/stoichiometry/H0208_subunit/
+    Agent/Qwen3.6-27B/
+      S1_fasta/                      Stage 1: candidate generation
+      S2_fasta_k5_af3/               Stage 2: AF3-informed reranking
+    AlphaFold3/h0208/                AF3 inputs, models and scores
+  stage2_summary/                    one-row summary tables of Stage 2
+  article_cache/  pdb_json_cache/  pubmed_cache_test/  uniprot_cache_test/
+                                     caches of literature and database lookups
+```
+
+#### Template search results
+
+For each subunit (`A`, `B`, ...) `template_search/` keeps the `jackhmmer` search of UniRef90 (`.sto`, `.tblout`, `.jackhmmer.log`), the alignment and profile built from it (`.a3m`, `.hmm`), and the `hhsearch` hits against the PDB template database (`.hhr`). `<subunit>.search.sha256` records the inputs of the search, so a rerun in the same folder reuses it. `H0208.json` turns the hits into evidence for Stage 1, such as the copy numbers seen in templates shared by several subunits.
+
+#### Stage 1: candidates
+
+`Agent/<model>/S1_fasta/` contains:
+
+| File | Contents |
+|---|---|
+| `H0208_phase1_topall_k15.out` | All proposed stoichiometries, ranked by their confidence averaged over the 15 samples. The first `--k` go to AF3. |
+| `H0208_phase1_top5_k15.out` | The top five of the same ranking. |
+| `H0208_sampleNN_phase1.trace` | The full conversation of sample NN: prompt, tool calls to RCSB, UniProt and PubMed, and the answer (see [Reasoning traces](#reasoning-traces)). |
+| `phase1_cache/` | Cached Stage-1 samples, reused by a rerun. |
+
+```text
+1. A1B1         avg_conf=0.764 n=15/15
+2. A2B2         avg_conf=0.253 n=15/15
+3. A1B2         avg_conf=0.037 n=15/15
+```
+
+`avg_conf` is the candidate's confidence averaged over all samples, counting 0 when a sample did not propose it, and `n` is how many samples proposed it.
+
+#### AlphaFold 3 models
+
+`AlphaFold3/h0208/` holds one AF3 job per shortlisted candidate, named `h0208_<candidate>` (for example `h0208_a1b1`):
+
+| File | Contents |
+|---|---|
+| `input_jsons/h0208_<candidate>.json` | AF3 input of each job. |
+| `h0208_<candidate>/h0208_<candidate>_model.cif` | Best of the job's models by AF3 ranking score. |
+| `h0208_<candidate>/h0208_<candidate>_ranking_scores.csv` | `ranking_score` of every model (`seed`, `sample`). |
+| `h0208_<candidate>/h0208_<candidate>_summary_confidences.json`, `..._confidences.json` | AF3 confidence metrics (pTM, ipTM, pLDDT, PAE) of the best model. |
+| `h0208_<candidate>/h0208_<candidate>_data.json` | MSAs and templates used by the job. |
+| `h0208_<candidate>/seed-S_sample-N/` | Each individual model with its confidences. |
+| `stoichiometry_results.csv` | Best and mean ranking score of every candidate; the AF3 evidence given to Stage 2. |
+
+Only the simplest stoichiometry (`A1B1`, or `A2` for a homomer) runs the AF3 MSA and template search; the other candidates reuse its MSAs and templates. Each job makes `--num_models` models: `--num_models / 5` seeds with five samples each. Candidates over AF3's 5,000-residue or 26-chain limits get no job and are missing from `stoichiometry_results.csv`.
+
+```text
+stoic,max_ranking_score,avg_ranking_score,num_models
+A1B1,0.966,0.952,25
+A2B2,0.861,0.718,25
+A1B2,0.756,0.590,25
+A2B1,0.863,0.795,25
+A4B4,0.837,0.523,25
+```
+
+A ranking score compares models of the same candidate well, but it is structural confidence, not the probability that a stoichiometry is correct. Larger assemblies can still reach high maximum scores, as `A4B4` does here; the gap between the maximum and the mean shows how consistent the models are.
+
+#### Stage 2: reranking
+
+`Agent/<model>/S2_fasta_k<k>_af3/` contains:
+
+| File | Contents |
+|---|---|
+| `H0208_subunit_phase2_result.json` | The final answer (`final_answer`), the ranking (`ranking`) and the LLM's rationale (`rationale`), plus the Stage-1 ranking and AF3 scores it was given. |
+| `H0208_subunit_phase2_topall_k1.out` | The ranking with each candidate's Stage-1 rank and support and AF3 scores, followed by the rationale. Easiest file to read. |
+| `H0208_subunit_phase2_top5_k1.out` | The top five of the same ranking. |
+| `H0208_subunit_phase2_prompt.json` | The exact Stage-2 prompt. |
+| `H0208_subunit_sample01_phase2.trace` | The full Stage-2 conversation (see [Reasoning traces](#reasoning-traces)). |
+
+```text
+1. A1B1  stage1_rank=1 stage1_support=0.764 af3_max=0.966 af3_avg=0.952 num_models=25
+2. A2B1  stage1_rank=4 stage1_support=0.036 af3_max=0.863 af3_avg=0.795 num_models=25
+3. A2B2  stage1_rank=2 stage1_support=0.253 af3_max=0.861 af3_avg=0.718 num_models=25
+```
+
+`stage2_summary/` repeats the result as one-row tables. `af3_score_only_per_target.csv` ranks the shortlist by AF3 score alone (`af3_max`, `af3_avg`), a useful baseline for the Stage-2 ranking. The `truth` and `hit` columns of these tables are for benchmarking and stay empty in normal runs.
+
+#### Reasoning traces
+
+Each Stage-1 sample and the Stage-2 reranking leave a plain-text trace of the full LLM conversation (`H0208_sampleNN_phase1.trace`, `H0208_subunit_sample01_phase2.trace`):
+
+- **Turns.** The trace is a series of `--- Turn N ---` blocks, one per model call. Each block repeats the whole conversation up to that call, so the last block is the complete conversation.
+- **Roles.** `SYSTEM:` is the agent's instructions. The first `USER:` message is the full prompt: the target description and sequences, the shared-template evidence from `H0208.json`, the research tools and their budgets, and the required answer format. `ASSISTANT:` lines are the model's replies.
+- **Research.** A tool call appears as an `Action:` line, such as `Action: RCSB.getPDB("2YHE")`, followed by the `Observation:` StoiAgent got back from RCSB, UniProt or PubMed. In the H0208 run the template evidence was decisive and no sample used the tools.
+- **Feedback from StoiAgent.** Later `USER:` messages come from StoiAgent's answer checker, not from a person. For example, sample 07 of H0208 listed `A1B1` twice, so only four of its candidates were valid; it received `need 1 more valid unique candidate(s)`, added `A4B4`, and was then asked to choose its final answer.
+- **What the reasoning is.** Qwen3.6-27B runs with its thinking mode switched off, so there is no hidden chain of thought; the trace holds everything the model wrote. In Stage 1 the reasoning is the `Thought:` line and the `support_evidence` given for each candidate, for example:
+
+  ```text
+  1) A1B1  support=0.950000  support_evidence=Consistent with DahAB heterodimer identity and multiple high-quality shared templates (2YHE, 6UXU, 5AJL, 4NUR)
+  2) A2B2  support=0.100000  support_evidence=Possible dimer-of-dimers assembly seen in some homologous aldose reductases, but less supported for specific DahAB
+  ```
+
+- **Stage 2.** Turn 1 holds the ranking, and `VALIDATION: ok` confirms that it is a complete ordering of the shortlist. Turn 2 asks the model to explain each candidate's position; its answer is marked `VALIDATION: explanation only; saved ranking unchanged`. The detailed rationale in `H0208_subunit_phase2_result.json` (`rationale`, with the first short version kept as `original_rationale`) is therefore written after the ranking is fixed: it explains the ranking but cannot change it.
+
+Traces show how a candidate got its support, but the model's statements are not checked facts. In H0208, sample 07 called DahAB the lysine-biosynthesis enzymes DapA and DapB while still ranking `A1B1` first, so read the traces with the evidence they cite. To list the final answer of every Stage-1 sample (the last `Final Answer` line of each trace; earlier ones repeat the prompt's answer format and previous turns):
+
+```bash
+for f in raw/H0208/stoichiometry/H0208_subunit/Agent/Qwen3.6-27B/S1_fasta/*.trace; do
+  grep "^Final Answer: [A-Z][0-9]" "$f" | tail -n 1
+done | sort | uniq -c
+```
+
+#### Caches and reruns
+
+`article_cache/` stores literature summaries made by Qwen3-4B, and `pdb_json_cache/`, `pubmed_cache_test/` and `uniprot_cache_test/` store RCSB, PubMed and UniProt responses; they stay empty when Stage 1 makes no such lookups. A rerun with the same `--output_dir` reuses the template search, the AF3 jobs whose scores exist and the cached Stage-1 samples, so a stopped run can be continued. Use a new folder after changing the databases, models or configuration.
+
+With Docker, AF3 runs as your own user, so all output files belong to you.
 
 ## Example datasets
 
@@ -228,128 +346,6 @@ StoiAgent loads its language models from Hugging Face. The weights download auto
 - **Storage:** the weights go to the Hugging Face cache, `~/.cache/huggingface` by default. To keep them on a larger disk, set `export HF_HOME=/big/disk/huggingface` before running StoiAgent, for example in `~/.bashrc`.
 - **Download in advance:** to download before the first run, for example on a login node with internet access, run `hf download Qwen/Qwen3.6-27B` and `hf download Qwen/Qwen3-4B-Instruct-2507` in the `stoiagent` environment.
 - **Gated models:** Gemma is gated. Accept its license on its Hugging Face page, then run `hf auth login` once with a Hugging Face access token. The Qwen models need no login.
-
-## Output files
-
-All files of a run go to `--output_dir`. The target is named after the input FASTA (`H0208.fasta` → `H0208`); FASTA names that are not an `H` or `T` followed by four digits are named `H0001` instead. The tree below is from `--input_fasta examples/casp16/H0208.fasta --num_models 25`, with the default `--model Qwen3.6-27B` and `--k 5`:
-
-```text
-results/H0208/
-  final_prediction.json              final answer (see Output above)
-  H0208.fasta                        subunits renamed A, B, ... (duplicates merged)
-  target_sequences.fasta             sequences with the description and organism given to the LLM
-  H0208.json                         template evidence assembled for Stage 1
-  template_search/                   per-subunit template search
-  raw/H0208/stoichiometry/H0208_subunit/
-    Agent/Qwen3.6-27B/
-      S1_fasta/                      Stage 1: candidate generation
-      S2_fasta_k5_af3/               Stage 2: AF3-informed reranking
-    AlphaFold3/h0208/                AF3 inputs, models and scores
-  stage2_summary/                    one-row summary tables of Stage 2
-  article_cache/  pdb_json_cache/  pubmed_cache_test/  uniprot_cache_test/
-                                     caches of literature and database lookups
-```
-
-### Template search
-
-For each subunit (`A`, `B`, ...) `template_search/` keeps the `jackhmmer` search of UniRef90 (`.sto`, `.tblout`, `.jackhmmer.log`), the alignment and profile built from it (`.a3m`, `.hmm`), and the `hhsearch` hits against the PDB template database (`.hhr`). `<subunit>.search.sha256` records the inputs of the search, so a rerun in the same folder reuses it. `H0208.json` turns the hits into evidence for Stage 1, such as the copy numbers seen in templates shared by several subunits.
-
-### Stage 1: candidates
-
-`Agent/<model>/S1_fasta/` contains:
-
-| File | Contents |
-|---|---|
-| `H0208_phase1_topall_k15.out` | All proposed stoichiometries, ranked by their confidence averaged over the 15 samples. The first `--k` go to AF3. |
-| `H0208_phase1_top5_k15.out` | The top five of the same ranking. |
-| `H0208_sampleNN_phase1.trace` | The full conversation of sample NN: prompt, tool calls to RCSB, UniProt and PubMed, and the answer (see [Reasoning traces](#reasoning-traces)). |
-| `phase1_cache/` | Cached Stage-1 samples, reused by a rerun. |
-
-```text
-1. A1B1         avg_conf=0.764 n=15/15
-2. A2B2         avg_conf=0.253 n=15/15
-3. A1B2         avg_conf=0.037 n=15/15
-```
-
-`avg_conf` is the candidate's confidence averaged over all samples, counting 0 when a sample did not propose it, and `n` is how many samples proposed it.
-
-### AlphaFold 3 models
-
-`AlphaFold3/h0208/` holds one AF3 job per shortlisted candidate, named `h0208_<candidate>` (for example `h0208_a1b1`):
-
-| File | Contents |
-|---|---|
-| `input_jsons/h0208_<candidate>.json` | AF3 input of each job. |
-| `h0208_<candidate>/h0208_<candidate>_model.cif` | Best of the job's models by AF3 ranking score. |
-| `h0208_<candidate>/h0208_<candidate>_ranking_scores.csv` | `ranking_score` of every model (`seed`, `sample`). |
-| `h0208_<candidate>/h0208_<candidate>_summary_confidences.json`, `..._confidences.json` | AF3 confidence metrics (pTM, ipTM, pLDDT, PAE) of the best model. |
-| `h0208_<candidate>/h0208_<candidate>_data.json` | MSAs and templates used by the job. |
-| `h0208_<candidate>/seed-S_sample-N/` | Each individual model with its confidences. |
-| `stoichiometry_results.csv` | Best and mean ranking score of every candidate; the AF3 evidence given to Stage 2. |
-
-Only the simplest stoichiometry (`A1B1`, or `A2` for a homomer) runs the AF3 MSA and template search; the other candidates reuse its MSAs and templates. Each job makes `--num_models` models: `--num_models / 5` seeds with five samples each. Candidates over AF3's 5,000-residue or 26-chain limits get no job and are missing from `stoichiometry_results.csv`.
-
-```text
-stoic,max_ranking_score,avg_ranking_score,num_models
-A1B1,0.966,0.952,25
-A2B2,0.861,0.718,25
-A1B2,0.756,0.590,25
-A2B1,0.863,0.795,25
-A4B4,0.837,0.523,25
-```
-
-A ranking score compares models of the same candidate well, but it is structural confidence, not the probability that a stoichiometry is correct. Larger assemblies can still reach high maximum scores, as `A4B4` does here; the gap between the maximum and the mean shows how consistent the models are.
-
-### Stage 2: reranking
-
-`Agent/<model>/S2_fasta_k<k>_af3/` contains:
-
-| File | Contents |
-|---|---|
-| `H0208_subunit_phase2_result.json` | The final answer (`final_answer`), the ranking (`ranking`) and the LLM's rationale (`rationale`), plus the Stage-1 ranking and AF3 scores it was given. |
-| `H0208_subunit_phase2_topall_k1.out` | The ranking with each candidate's Stage-1 rank and support and AF3 scores, followed by the rationale. Easiest file to read. |
-| `H0208_subunit_phase2_top5_k1.out` | The top five of the same ranking. |
-| `H0208_subunit_phase2_prompt.json` | The exact Stage-2 prompt. |
-| `H0208_subunit_sample01_phase2.trace` | The full Stage-2 conversation (see [Reasoning traces](#reasoning-traces)). |
-
-```text
-1. A1B1  stage1_rank=1 stage1_support=0.764 af3_max=0.966 af3_avg=0.952 num_models=25
-2. A2B1  stage1_rank=4 stage1_support=0.036 af3_max=0.863 af3_avg=0.795 num_models=25
-3. A2B2  stage1_rank=2 stage1_support=0.253 af3_max=0.861 af3_avg=0.718 num_models=25
-```
-
-`stage2_summary/` repeats the result as one-row tables. `af3_score_only_per_target.csv` ranks the shortlist by AF3 score alone (`af3_max`, `af3_avg`), a useful baseline for the Stage-2 ranking. The `truth` and `hit` columns of these tables are for benchmarking and stay empty in normal runs.
-
-### Reasoning traces
-
-Each Stage-1 sample and the Stage-2 reranking leave a plain-text trace of the full LLM conversation (`H0208_sampleNN_phase1.trace`, `H0208_subunit_sample01_phase2.trace`):
-
-- **Turns.** The trace is a series of `--- Turn N ---` blocks, one per model call. Each block repeats the whole conversation up to that call, so the last block is the complete conversation.
-- **Roles.** `SYSTEM:` is the agent's instructions. The first `USER:` message is the full prompt: the target description and sequences, the shared-template evidence from `H0208.json`, the research tools and their budgets, and the required answer format. `ASSISTANT:` lines are the model's replies.
-- **Research.** A tool call appears as an `Action:` line, such as `Action: RCSB.getPDB("2YHE")`, followed by the `Observation:` StoiAgent got back from RCSB, UniProt or PubMed. In the H0208 run the template evidence was decisive and no sample used the tools.
-- **Feedback from StoiAgent.** Later `USER:` messages come from StoiAgent's answer checker, not from a person. For example, sample 07 of H0208 listed `A1B1` twice, so only four of its candidates were valid; it received `need 1 more valid unique candidate(s)`, added `A4B4`, and was then asked to choose its final answer.
-- **What the reasoning is.** Qwen3.6-27B runs with its thinking mode switched off, so there is no hidden chain of thought; the trace holds everything the model wrote. In Stage 1 the reasoning is the `Thought:` line and the `support_evidence` given for each candidate, for example:
-
-  ```text
-  1) A1B1  support=0.950000  support_evidence=Consistent with DahAB heterodimer identity and multiple high-quality shared templates (2YHE, 6UXU, 5AJL, 4NUR)
-  2) A2B2  support=0.100000  support_evidence=Possible dimer-of-dimers assembly seen in some homologous aldose reductases, but less supported for specific DahAB
-  ```
-
-- **Stage 2.** Turn 1 holds the ranking, and `VALIDATION: ok` confirms that it is a complete ordering of the shortlist. Turn 2 asks the model to explain each candidate's position; its answer is marked `VALIDATION: explanation only; saved ranking unchanged`. The detailed rationale in `H0208_subunit_phase2_result.json` (`rationale`, with the first short version kept as `original_rationale`) is therefore written after the ranking is fixed: it explains the ranking but cannot change it.
-
-Traces show how a candidate got its support, but the model's statements are not checked facts. In H0208, sample 07 called DahAB the lysine-biosynthesis enzymes DapA and DapB while still ranking `A1B1` first, so read the traces with the evidence they cite. To list the final answer of every Stage-1 sample (the last `Final Answer` line of each trace; earlier ones repeat the prompt's answer format and previous turns):
-
-```bash
-for f in raw/H0208/stoichiometry/H0208_subunit/Agent/Qwen3.6-27B/S1_fasta/*.trace; do
-  grep "^Final Answer: [A-Z][0-9]" "$f" | tail -n 1
-done | sort | uniq -c
-```
-
-### Caches and reruns
-
-`article_cache/` stores literature summaries made by Qwen3-4B, and `pdb_json_cache/`, `pubmed_cache_test/` and `uniprot_cache_test/` store RCSB, PubMed and UniProt responses; they stay empty when Stage 1 makes no such lookups. A rerun with the same `--output_dir` reuses the template search, the AF3 jobs whose scores exist and the cached Stage-1 samples, so a stopped run can be continued. Use a new folder after changing the databases, models or configuration.
-
-With Docker, AF3 runs as your own user, so all output files belong to you.
 
 ## Configuration
 
