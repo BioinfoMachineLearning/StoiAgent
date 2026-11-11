@@ -78,7 +78,7 @@ def _run_af3(config: dict, output: Path, job_name: str) -> None:
             "--volume", f"{params}:/root/models",
             "--volume", f"{database}:/root/public_databases",
             "--gpus", f"device={config.get('gpu_device', '0')}",
-            config.get("af3_image", "alphafold3"),
+            config.get("af3_image", "stoiagent-alphafold3"),
             *common_args, "--run_inference=true",
         ]
     elif runtime == "singularity":

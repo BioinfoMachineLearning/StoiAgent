@@ -32,7 +32,7 @@ scripts/setup_databases.sh
 **3. Finish setting up AF3.** Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and put `af3.bin` in `tools/alphafold3/models/`. Then build the AF3 Docker image:
 
 ```bash
-docker build -t alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
+docker build -t stoiagent-alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
 ```
 
 **4. Run a prediction:**
@@ -190,7 +190,7 @@ The setup script clones AF3 into `tools/alphafold3` and downloads its databases 
 3. Build the official image and run the official sample prediction to verify the installation:
 
    ```bash
-   docker build -t alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
+   docker build -t stoiagent-alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
    ```
 
 StoiAgent mounts `tools/alphafold3/models` at `/root/models` and the AF3 databases at `/root/public_databases` inside the container. To use Singularity instead, follow the [official Singularity instructions](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#running-using-singularity-instead-of-docker) to build `tools/alphafold3.sif`, and set `"af3_runtime": "singularity"` in `config.json`.
@@ -236,7 +236,7 @@ StoiAgent needs no configuration when everything is in its default location. To 
 }
 ```
 
-The available keys are `uniref90_path`, `hhdb_prefix`, `template_entity_fasta_dir`, `template_entity_metadata_dir`, `template_chain_atoms_dir`, `template_stoichiometry_csv`, `af3_program_path`, `af3_params_path`, `af3_db_path`, `af3_sif_path`, `af3_runtime` (`docker` or `singularity`), `af3_image`, `gpu_device`, `jackhmmer_binary`, `hhmake_binary`, `hhsearch_binary` and `search_cpu`. The defaults are in `src/stoiagent/config.py`.
+The available keys are `uniref90_path`, `hhdb_prefix`, `template_entity_fasta_dir`, `template_entity_metadata_dir`, `template_chain_atoms_dir`, `template_stoichiometry_csv`, `af3_program_path`, `af3_params_path`, `af3_db_path`, `af3_sif_path`, `af3_runtime` (`docker` or `singularity`), `af3_image` (default `stoiagent-alphafold3`), `gpu_device`, `jackhmmer_binary`, `hhmake_binary`, `hhsearch_binary` and `search_cpu`. The defaults are in `src/stoiagent/config.py`.
 
 ## How the pipeline works
 

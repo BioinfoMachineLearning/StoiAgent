@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     "af3_program_path": "tools/alphafold3",
     "af3_params_path": "tools/alphafold3/models",
     "af3_db_path": "databases/af3",
-    "af3_image": "alphafold3",
+    "af3_image": "stoiagent-alphafold3",
     "af3_sif_path": "tools/alphafold3.sif",
     "gpu_device": "0",
 }

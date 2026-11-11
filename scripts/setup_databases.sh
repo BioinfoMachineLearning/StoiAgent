@@ -172,9 +172,9 @@ if (( DO_AF3 )) && [[ ! -e "$REPO/tools/alphafold3/models/af3.bin" && ! -e "$REP
   echo "  https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters"
   missing=1
 fi
-if (( DO_AF3 )) && ! { command -v docker >/dev/null && docker image inspect alphafold3 >/dev/null 2>&1; }; then
+if (( DO_AF3 )) && ! { command -v docker >/dev/null && docker image inspect stoiagent-alphafold3 >/dev/null 2>&1; }; then
   echo "- Build the AF3 Docker image:"
-  echo "  docker build -t alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3"
+  echo "  docker build -t stoiagent-alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3"
   missing=1
 fi
 for tool in jackhmmer hhmake hhsearch; do
