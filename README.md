@@ -262,7 +262,7 @@ For each subunit (`A`, `B`, ...) `template_search/` keeps the `jackhmmer` search
 |---|---|
 | `H0208_phase1_topall_k15.out` | All proposed stoichiometries, ranked by their confidence averaged over the 15 samples. The first `--k` go to AF3. |
 | `H0208_phase1_top5_k15.out` | The top five of the same ranking. |
-| `H0208_sampleNN_phase1.trace` | The full conversation of sample NN: prompt, tool calls to RCSB, UniProt and PubMed, and the answer. |
+| `H0208_sampleNN_phase1.trace` | The full conversation of sample NN: prompt, tool calls to RCSB, UniProt and PubMed, and the answer (see [Reasoning traces](#reasoning-traces)). |
 | `phase1_cache/` | Cached Stage-1 samples, reused by a rerun. |
 
 ```text
@@ -310,7 +310,7 @@ A ranking score compares models of the same candidate well, but it is structural
 | `H0208_subunit_phase2_topall_k1.out` | The ranking with each candidate's Stage-1 rank and support and AF3 scores, followed by the rationale. Easiest file to read. |
 | `H0208_subunit_phase2_top5_k1.out` | The top five of the same ranking. |
 | `H0208_subunit_phase2_prompt.json` | The exact Stage-2 prompt. |
-| `H0208_subunit_sample01_phase2.trace` | The full Stage-2 conversation. |
+| `H0208_subunit_sample01_phase2.trace` | The full Stage-2 conversation (see [Reasoning traces](#reasoning-traces)). |
 
 ```text
 1. A1B1  stage1_rank=1 stage1_support=0.764 af3_max=0.966 af3_avg=0.952 num_models=25
@@ -319,6 +319,31 @@ A ranking score compares models of the same candidate well, but it is structural
 ```
 
 `stage2_summary/` repeats the result as one-row tables. `af3_score_only_per_target.csv` ranks the shortlist by AF3 score alone (`af3_max`, `af3_avg`), a useful baseline for the Stage-2 ranking. The `truth` and `hit` columns of these tables are for benchmarking and stay empty in normal runs.
+
+### Reasoning traces
+
+Each Stage-1 sample and the Stage-2 reranking leave a plain-text trace of the full LLM conversation (`H0208_sampleNN_phase1.trace`, `H0208_subunit_sample01_phase2.trace`):
+
+- **Turns.** The trace is a series of `--- Turn N ---` blocks, one per model call. Each block repeats the whole conversation up to that call, so the last block is the complete conversation.
+- **Roles.** `SYSTEM:` is the agent's instructions. The first `USER:` message is the full prompt: the target description and sequences, the shared-template evidence from `H0208.json`, the research tools and their budgets, and the required answer format. `ASSISTANT:` lines are the model's replies.
+- **Research.** A tool call appears as an `Action:` line, such as `Action: RCSB.getPDB("2YHE")`, followed by the `Observation:` StoiAgent got back from RCSB, UniProt or PubMed. In the H0208 run the template evidence was decisive and no sample used the tools.
+- **Feedback from StoiAgent.** Later `USER:` messages come from StoiAgent's answer checker, not from a person. For example, sample 07 of H0208 listed `A1B1` twice, so only four of its candidates were valid; it received `need 1 more valid unique candidate(s)`, added `A4B4`, and was then asked to choose its final answer.
+- **What the reasoning is.** Qwen3.6-27B runs with its thinking mode switched off, so there is no hidden chain of thought; the trace holds everything the model wrote. In Stage 1 the reasoning is the `Thought:` line and the `support_evidence` given for each candidate, for example:
+
+  ```text
+  1) A1B1  support=0.950000  support_evidence=Consistent with DahAB heterodimer identity and multiple high-quality shared templates (2YHE, 6UXU, 5AJL, 4NUR)
+  2) A2B2  support=0.100000  support_evidence=Possible dimer-of-dimers assembly seen in some homologous aldose reductases, but less supported for specific DahAB
+  ```
+
+- **Stage 2.** Turn 1 holds the ranking, and `VALIDATION: ok` confirms that it is a complete ordering of the shortlist. Turn 2 asks the model to explain each candidate's position; its answer is marked `VALIDATION: explanation only; saved ranking unchanged`. The detailed rationale in `H0208_subunit_phase2_result.json` (`rationale`, with the first short version kept as `original_rationale`) is therefore written after the ranking is fixed: it explains the ranking but cannot change it.
+
+Traces show how a candidate got its support, but the model's statements are not checked facts. In H0208, sample 07 called DahAB the lysine-biosynthesis enzymes DapA and DapB while still ranking `A1B1` first, so read the traces with the evidence they cite. To list the final answer of every Stage-1 sample (the last `Final Answer` line of each trace; earlier ones repeat the prompt's answer format and previous turns):
+
+```bash
+for f in raw/H0208/stoichiometry/H0208_subunit/Agent/Qwen3.6-27B/S1_fasta/*.trace; do
+  grep "^Final Answer: [A-Z][0-9]" "$f" | tail -n 1
+done | sort | uniq -c
+```
 
 ### Caches and reruns
 
