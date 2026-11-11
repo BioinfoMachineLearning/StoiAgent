@@ -196,7 +196,7 @@ The setup script clones AF3 into `tools/alphafold3`, downloads the [AF3 model pa
    docker build -t stoiagent-alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
    ```
 
-StoiAgent mounts `tools/alphafold3/models` at `/root/models` and the AF3 databases at `/root/public_databases` inside the container. To use Singularity instead, follow the [official Singularity instructions](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#running-using-singularity-instead-of-docker) to build `tools/alphafold3.sif`, and set `"af3_runtime": "singularity"` in `config.json`.
+With Docker, StoiAgent runs AF3 as your own user (`docker run --user`), so its outputs belong to you, and mounts `tools/alphafold3/models` at `/models`, the AF3 databases at `/public_databases` and the AF3 output folder at `/af_output` inside the container. If an AF3 output folder still contains files owned by root, for example from an older run, StoiAgent hands them back to you after the next AF3 job. To use Singularity instead, follow the [official Singularity instructions](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#running-using-singularity-instead-of-docker) to build `tools/alphafold3.sif`, and set `"af3_runtime": "singularity"` in `config.json`.
 
 ### Template search
 

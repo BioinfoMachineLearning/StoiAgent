@@ -16,8 +16,23 @@ from .stage2_rerank import parse_stage1_ranked
 from .template_search import read_target_fasta
 
 
-TARGET_ID = "H0001"  # Internal ID; withheld from both model prompts.
+FALLBACK_TARGET_ID = "H0001"  # Used when the FASTA name is not an H/T + 4-digit ID.
 STAGE1_VARIANT = "S1_fasta"
+
+
+def target_id_for(fasta: Path) -> str:
+    """Name the target after the input FASTA, e.g. H0208.fasta -> H0208.
+
+    The stage modules look targets up by H/T + 4-digit IDs, so other FASTA
+    names fall back to a fixed internal ID. The ID is withheld from both model
+    prompts either way.
+    """
+    stem = fasta.stem.upper()
+    if re.fullmatch(r"[HT]\d{4}", stem):
+        return stem
+    print(f"stoiagent: FASTA name {fasta.stem!r} is not an H/T + 4-digit target ID; "
+          f"using {FALLBACK_TARGET_ID} for internal file names.", file=sys.stderr)
+    return FALLBACK_TARGET_ID
 
 
 def _run(args: list[str], *, cwd: Path) -> None:
@@ -30,14 +45,14 @@ def _run(args: list[str], *, cwd: Path) -> None:
         sys.exit(returncode)
 
 
-def _write_sequence_catalog(path: Path, sequences: dict[str, str],
+def _write_sequence_catalog(path: Path, target_id: str, sequences: dict[str, str],
                             description: str, organism: str) -> None:
     clean_description = re.sub(r"[\r\n,]", " ", description).strip() or "Protein complex"
     clean_organism = re.sub(r"[\r\n,]", " ", organism).strip() or "unspecified organism"
     lines = []
     for index, sequence in enumerate(sequences.values(), 1):
         lines += [
-            f">{TARGET_ID} {clean_description}, {clean_organism}, subunit {index}, {len(sequence)} residues;",
+            f">{target_id} {clean_description}, {clean_organism}, subunit {index}, {len(sequence)} residues;",
             sequence,
         ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -72,22 +87,23 @@ def main(argv=None) -> None:
     out = args.output_dir.resolve()
     out.mkdir(parents=True, exist_ok=True)
     sequences = read_target_fasta(source)
-    canonical_fasta = out / f"{TARGET_ID}.fasta"
+    target_id = target_id_for(source)
+    canonical_fasta = out / f"{target_id}.fasta"
     canonical_fasta.write_text(
         "".join(f">{su}\n{sequence}\n" for su, sequence in sequences.items()),
         encoding="utf-8",
     )
     catalog = out / "target_sequences.fasta"
-    _write_sequence_catalog(catalog, sequences, args.description or source.stem, args.organism)
+    _write_sequence_catalog(catalog, target_id, sequences, args.description or source.stem, args.organism)
 
-    target_dir = out / "raw" / TARGET_ID / "stoichiometry" / f"{TARGET_ID}_subunit"
-    target_json = out / f"{TARGET_ID}.json"
+    target_dir = out / "raw" / target_id / "stoichiometry" / f"{target_id}_subunit"
+    target_json = out / f"{target_id}.json"
     _run([
         "-m", "stoiagent.build_target_json",
         "--input_fasta", str(canonical_fasta),
         *(["--config", str(config_path)] if config_path else []),
         "--workdir", str(out / "template_search"),
-        "--output_json", str(target_json), "--protein_id", TARGET_ID,
+        "--output_json", str(target_json), "--protein_id", target_id,
     ], cwd=out)
 
     stage1_dir = target_dir / "Agent" / args.model / STAGE1_VARIANT
@@ -98,25 +114,25 @@ def main(argv=None) -> None:
         "--casp17_seq_file", str(catalog), "--information_cutoff", "",
         "--summary_cache_dir", str(out / "article_cache" / "Qwen3-4B"),
     ], cwd=out)
-    stage1_file = stage1_dir / f"{TARGET_ID}_phase1_topall_k15.out"
+    stage1_file = stage1_dir / f"{target_id}_phase1_topall_k15.out"
     if not stage1_file.is_file():
         raise RuntimeError(f"Stage 1 did not produce {stage1_file}")
     candidates = [row["stoic"] for row in parse_stage1_ranked(stage1_file)[:args.k]]
     if not candidates:
         raise RuntimeError("Stage 1 produced no valid stoichiometry candidates")
 
-    af3_dir = target_dir / "AlphaFold3" / TARGET_ID.lower()
+    af3_dir = target_dir / "AlphaFold3" / target_id.lower()
     af3_csv = run_af3_shortlist(canonical_fasta, candidates, af3_dir, config,
                                 num_models=args.num_models)
     _run([
         "-m", "stoiagent.stage2_rerank", "--root", str(out / "raw"),
-        "--targets", TARGET_ID, "--models", args.model,
+        "--targets", target_id, "--models", args.model,
         "--variant", STAGE1_VARIANT, "--k", str(args.k),
         "--casp17-sequences", str(catalog), "--af3-csv", str(af3_csv),
         "--conditions", "af3", "--outdir", str(out / "stage2_summary"),
         "--stage2-variant-prefix", f"S2_fasta_k{args.k}",
     ], cwd=out)
-    result_file = target_dir / "Agent" / args.model / f"S2_fasta_k{args.k}_af3" / f"{TARGET_ID}_subunit_phase2_result.json"
+    result_file = target_dir / "Agent" / args.model / f"S2_fasta_k{args.k}_af3" / f"{target_id}_subunit_phase2_result.json"
     if not result_file.is_file():
         raise RuntimeError(f"Stage 2 did not produce {result_file}")
     result = json.loads(result_file.read_text(encoding="utf-8"))

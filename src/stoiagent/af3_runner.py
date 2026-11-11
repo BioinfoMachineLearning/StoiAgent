@@ -60,6 +60,32 @@ def _load_common_data(path: Path) -> dict:
     return result
 
 
+def _give_output_to_user(output: Path, config: dict) -> None:
+    """Hand any root-owned files under ``output`` back to the calling user.
+
+    Jobs run with ``--user`` already write files as the user; this also fixes
+    outputs left by older root-run containers. The user cannot chown root's
+    files directly, so a short-lived container does it.
+    """
+    uid, gid = os.getuid(), os.getgid()
+    if uid == 0:
+        return
+    try:
+        foreign = any(p.lstat().st_uid != uid for p in [output, *output.rglob("*")])
+    except OSError:
+        foreign = True
+    if not foreign:
+        return
+    result = subprocess.run([
+        "docker", "run", "--rm", "--user", "0:0", "--volume", f"{output}:/af_output",
+        config.get("af3_image", "stoiagent-alphafold3"),
+        "chown", "-R", f"{uid}:{gid}", "/af_output",
+    ], capture_output=True, text=True)
+    if result.returncode:
+        print(f"warning: could not change ownership of {output} to {uid}:{gid}: "
+              f"{result.stderr.strip()}")
+
+
 def _run_af3(config: dict, output: Path, job_name: str) -> None:
     runtime = config.get("af3_runtime", "docker")
     require_paths(config, ["af3_program_path", "af3_params_path", "af3_db_path"]
@@ -73,14 +99,26 @@ def _run_af3(config: dict, output: Path, job_name: str) -> None:
         "--model_dir=/root/models", "--output_dir=/root/af_output",
     ]
     if runtime == "docker":
+        # Run as the calling user so AF3's outputs are not owned by root. The
+        # image's /root is private to root, so mount everything outside it.
         command = [
-            "docker", "run", "--rm", "--volume", f"{output}:/root/af_output",
-            "--volume", f"{params}:/root/models",
-            "--volume", f"{database}:/root/public_databases",
+            "docker", "run", "--rm",
+            "--user", f"{os.getuid()}:{os.getgid()}", "--env", "HOME=/tmp",
+            "--volume", f"{output}:/af_output",
+            "--volume", f"{params}:/models",
+            "--volume", f"{database}:/public_databases",
             "--gpus", f"device={config.get('gpu_device', '0')}",
             config.get("af3_image", "stoiagent-alphafold3"),
-            *common_args, "--run_inference=true",
+            "python", "run_alphafold.py",
+            f"--json_path=/af_output/input_jsons/{job_name}.json",
+            "--model_dir=/models", "--db_dir=/public_databases",
+            "--output_dir=/af_output", "--run_inference=true",
         ]
+        try:
+            subprocess.run(command, cwd=program, check=True)
+        finally:
+            _give_output_to_user(output, config)
+        return
     elif runtime == "singularity":
         command = [
             "singularity", "exec", "--nv",
@@ -143,7 +181,8 @@ def run_af3_shortlist(input_fasta: str | Path, candidates: list[str],
         if candidate != default:
             _write_af3_json(out / "input_jsons" / f"{name}.json", candidate,
                             sequences, seeds, common_data)
-        score_path = out / name / "ranking_scores.csv"
+        # AF3 prefixes every output file with the job name.
+        score_path = out / name / f"{name}_ranking_scores.csv"
         if not score_path.is_file():
             _run_af3(config, out, name)
         values = _score_file(score_path)

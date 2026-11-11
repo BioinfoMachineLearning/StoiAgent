@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from stoiagent.af3_runner import run_af3_shortlist
 from stoiagent import run_stoiagent
-from stoiagent.run_stoiagent import TARGET_ID, _write_sequence_catalog
+from stoiagent.run_stoiagent import FALLBACK_TARGET_ID, _write_sequence_catalog, target_id_for
 from stoiagent.stage2_rerank import parse_casp17_catalog
 from stoiagent.template_search import read_target_fasta, stockholm_to_a3m
 
@@ -22,9 +22,9 @@ class FastaPipelineTest(unittest.TestCase):
             sequences = read_target_fasta(path)
             self.assertEqual(sequences, {"A": "ACDE", "B": "FGHI"})
             catalog = Path(directory) / "catalog.fasta"
-            _write_sequence_catalog(catalog, sequences, "example complex", "example organism")
+            _write_sequence_catalog(catalog, "H0208", sequences, "example complex", "example organism")
             parsed = parse_casp17_catalog(catalog)
-            self.assertEqual([r["sequence"] for r in parsed[TARGET_ID]], ["ACDE", "FGHI"])
+            self.assertEqual([r["sequence"] for r in parsed["H0208"]], ["ACDE", "FGHI"])
 
     def test_stockholm_conversion_removes_query_gap_columns_and_duplicates(self):
         stockholm = (
@@ -47,7 +47,7 @@ class FastaPipelineTest(unittest.TestCase):
                 calls.append(job_name)
                 folder = output / job_name
                 folder.mkdir(parents=True, exist_ok=True)
-                (folder / "ranking_scores.csv").write_text(
+                (folder / f"{job_name}_ranking_scores.csv").write_text(
                     "ranking_score\n0.5\n0.7\n", encoding="utf-8"
                 )
                 if job_name.endswith("_a2"):
@@ -69,42 +69,66 @@ class FastaPipelineTest(unittest.TestCase):
             self.assertEqual(float(rows[0]["max_ranking_score"]), 0.7)
             self.assertEqual(float(rows[0]["avg_ranking_score"]), 0.6)
 
-    def test_one_command_connects_stage1_af3_and_stage2(self):
+    def test_af3_docker_runs_as_calling_user(self):
+        import os
+        from stoiagent.af3_runner import _run_af3
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            fasta = root / "complex.fasta"
-            fasta.write_text(">A\nACDE\n", encoding="utf-8")
-            output = root / "results"
-            commands = []
+            config = {"af3_program_path": str(root), "af3_params_path": str(root),
+                      "af3_db_path": str(root)}
+            with patch("stoiagent.af3_runner.subprocess.run") as run:
+                _run_af3(config, root, "job")
+            command = run.call_args_list[0].args[0]
+            self.assertEqual(command[command.index("--user") + 1], f"{os.getuid()}:{os.getgid()}")
+            self.assertIn("--db_dir=/public_databases", command)
+            self.assertFalse(any("/root/" in part for part in command))
 
-            def fake_run(args, *, cwd):
-                commands.append(args)
-                if args[1] == "stoiagent.stage1_agent":
-                    stage1 = output / "raw" / TARGET_ID / "stoichiometry" / f"{TARGET_ID}_subunit" / "Agent" / "Qwen3.6-27B" / "S1_fasta"
-                    stage1.mkdir(parents=True)
-                    (stage1 / f"{TARGET_ID}_phase1_topall_k15.out").write_text(
-                        "1. A2 avg_conf=0.8\n2. A3 avg_conf=0.6\n", encoding="utf-8"
-                    )
-                if args[1] == "stoiagent.stage2_rerank":
-                    stage2 = output / "raw" / TARGET_ID / "stoichiometry" / f"{TARGET_ID}_subunit" / "Agent" / "Qwen3.6-27B" / "S2_fasta_k5_af3"
-                    stage2.mkdir(parents=True)
-                    (stage2 / f"{TARGET_ID}_subunit_phase2_result.json").write_text(
-                        json.dumps({"status": "ok", "final_answer": "A3", "ranking": ["A3", "A2"]}),
-                        encoding="utf-8",
-                    )
+    def test_target_id_follows_fasta_name(self):
+        self.assertEqual(target_id_for(Path("examples/casp16/H0208.fasta")), "H0208")
+        self.assertEqual(target_id_for(Path("t1312.fasta")), "T1312")
+        self.assertEqual(target_id_for(Path("complex.fasta")), FALLBACK_TARGET_ID)
 
-            with patch("stoiagent.run_stoiagent._run", side_effect=fake_run), \
-                 patch("stoiagent.run_stoiagent.run_af3_shortlist", return_value=output / "scores.csv") as af3:
-                run_stoiagent.main([
-                    "--input_fasta", str(fasta),
-                    "--output_dir", str(output),
+    def test_one_command_connects_stage1_af3_and_stage2(self):
+        for fasta_name, tid in [("complex.fasta", FALLBACK_TARGET_ID), ("H0208.fasta", "H0208")]:
+            with self.subTest(fasta=fasta_name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fasta = root / fasta_name
+                fasta.write_text(">A\nACDE\n", encoding="utf-8")
+                output = root / "results"
+                target_dir = output / "raw" / tid / "stoichiometry" / f"{tid}_subunit"
+                commands = []
+
+                def fake_run(args, *, cwd):
+                    commands.append(args)
+                    if args[1] == "stoiagent.stage1_agent":
+                        stage1 = target_dir / "Agent" / "Qwen3.6-27B" / "S1_fasta"
+                        stage1.mkdir(parents=True)
+                        (stage1 / f"{tid}_phase1_topall_k15.out").write_text(
+                            "1. A2 avg_conf=0.8\n2. A3 avg_conf=0.6\n", encoding="utf-8"
+                        )
+                    if args[1] == "stoiagent.stage2_rerank":
+                        stage2 = target_dir / "Agent" / "Qwen3.6-27B" / "S2_fasta_k5_af3"
+                        stage2.mkdir(parents=True)
+                        (stage2 / f"{tid}_subunit_phase2_result.json").write_text(
+                            json.dumps({"status": "ok", "final_answer": "A3", "ranking": ["A3", "A2"]}),
+                            encoding="utf-8",
+                        )
+
+                with patch("stoiagent.run_stoiagent._run", side_effect=fake_run), \
+                     patch("stoiagent.run_stoiagent.run_af3_shortlist", return_value=output / "scores.csv") as af3:
+                    run_stoiagent.main([
+                        "--input_fasta", str(fasta),
+                        "--output_dir", str(output),
+                    ])
+                final = json.loads((output / "final_prediction.json").read_text())
+                self.assertEqual(final["top1_stoichiometry"], "A3")
+                self.assertEqual(af3.call_args.args[0], output / f"{tid}.fasta")
+                self.assertEqual(af3.call_args.args[1], ["A2", "A3"])
+                self.assertEqual(af3.call_args.args[2], target_dir / "AlphaFold3" / tid.lower())
+                self.assertIn(tid, [cmd[cmd.index("--targets") + 1] for cmd in commands if "--targets" in cmd])
+                self.assertEqual([cmd[1] for cmd in commands], [
+                    "stoiagent.build_target_json", "stoiagent.stage1_agent", "stoiagent.stage2_rerank"
                 ])
-            final = json.loads((output / "final_prediction.json").read_text())
-            self.assertEqual(final["top1_stoichiometry"], "A3")
-            self.assertEqual(af3.call_args.args[1], ["A2", "A3"])
-            self.assertEqual([cmd[1] for cmd in commands], [
-                "stoiagent.build_target_json", "stoiagent.stage1_agent", "stoiagent.stage2_rerank"
-            ])
 
     def test_default_config_points_inside_stoiagent_folder(self):
         from stoiagent.config import load_config
