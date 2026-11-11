@@ -23,13 +23,15 @@ mamba env create -f environment.yml
 mamba activate stoiagent
 ```
 
-**2. Download the databases** (about 700 GB; rerun the command if it is interrupted):
+**2. Download the databases and AF3 model parameters** (about 700 GB; rerun the command if it is interrupted):
 
 ```bash
 scripts/setup_databases.sh
 ```
 
-**3. Finish setting up AF3.** Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and put `af3.bin` in `tools/alphafold3/models/`. Then build the AF3 Docker image:
+The AF3 model parameters are subject to Google DeepMind's [terms of use](https://github.com/google-deepmind/alphafold3/blob/main/WEIGHTS_TERMS_OF_USE.md); review them before running the script.
+
+**3. Build the AF3 Docker image:**
 
 ```bash
 docker build -t stoiagent-alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
@@ -130,6 +132,7 @@ The GPU needs 80 GB because the default backbone, Qwen3.6-27B, takes about 54 GB
 | Disk use | Size |
 |---|---|
 | AF3 genetic databases | about 630 GB |
+| AF3 model parameters | about 1 GB |
 | Default LLM weights (Qwen3.6-27B and Qwen3-4B) | about 63 GB |
 | Template metadata and HHsearch database | about 57 GB, plus about 30 GB temporarily during setup |
 | `stoiagent` environment | about 6 GB |
@@ -156,18 +159,18 @@ Accept the license, choose the install location (the default is `~/miniforge3`),
 
 ## Databases and tools
 
-`scripts/setup_databases.sh` downloads the HHsearch template database and the template metadata (about 33 GB), clones AF3 and downloads the AF3 databases (about 630 GB). Everything goes to the default locations below, so StoiAgent finds it without a configuration file. Downloads resume where they stopped. Options:
+`scripts/setup_databases.sh` downloads the HHsearch template database and the template metadata (about 33 GB), clones AF3, and downloads the AF3 model parameters (about 1 GB) and the AF3 databases (about 630 GB). Everything goes to the default locations below, so StoiAgent finds it without a configuration file. Downloads resume where they stopped. Options:
 
 - `--db-dir /big/disk/stoiagent_db` puts the databases on another disk and records their paths in `config.json` in this folder. StoiAgent reads that file automatically.
 - `--only templates` or `--only af3` sets up just one part.
 
-When it finishes, the script lists the steps it cannot do for you: the AF3 model parameters and the AF3 Docker image. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
+When it finishes, the script lists the steps it cannot do for you, such as building the AF3 Docker image. If a resource is still missing when you run StoiAgent, it stops before the step that needs it and lists the missing paths.
 
 ```text
 StoiAgent/
   tools/
     alphafold3/             AF3 source checkout                       (setup script)
-      models/af3.bin        AF3 model parameters                      (manual)
+      models/af3.bin.zst    AF3 model parameters                      (setup script)
     alphafold3.sif          AF3 Singularity image, Singularity only   (manual)
   databases/
     af3/                    AF3 genetic databases, incl. UniRef90     (setup script)
@@ -183,10 +186,10 @@ Git ignores `databases/`, `tools/` and `config.json`.
 
 ### AlphaFold 3
 
-The setup script clones AF3 into `tools/alphafold3` and downloads its databases to `databases/af3`. The rest follows the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md):
+The setup script clones AF3 into `tools/alphafold3`, downloads the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) to `tools/alphafold3/models/af3.bin.zst`, and downloads its databases to `databases/af3`. AF3 reads the compressed parameters directly. The rest follows the [official AlphaFold 3 installation guide](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md):
 
 1. Install Docker, the NVIDIA driver, and the NVIDIA Container Toolkit as described in the official guide. Check `nvidia-smi` and that a GPU-enabled Docker container can see the GPU.
-2. Request the [AF3 model parameters](https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters) from Google DeepMind and review their terms of use. Put them in `tools/alphafold3/models/`, so that the folder contains `af3.bin`. The parameters are not included in this repository.
+2. Review the [terms of use](https://github.com/google-deepmind/alphafold3/blob/main/WEIGHTS_TERMS_OF_USE.md) of the AF3 model parameters. The parameters are not included in this repository; the setup script downloads them from Google.
 3. Build the official image and run the official sample prediction to verify the installation:
 
    ```bash

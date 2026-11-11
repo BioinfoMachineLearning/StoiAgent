@@ -14,6 +14,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE_URL="${STOIAGENT_DB_URL:-http://sysbio.rnet.missouri.edu/multicom_cluster/stoiagent_db_tools/databases}"
 AF3_REPO="https://github.com/google-deepmind/alphafold3.git"
+AF3_PARAMS_URL="https://storage.googleapis.com/alphafold3/af3.bin.zst"
 
 DB_DIR="$REPO/databases"
 DO_TEMPLATES=1
@@ -120,6 +121,16 @@ setup_af3() {
   fi
   mkdir -p "$src/models"
 
+  log "AlphaFold 3 model parameters -> $src/models"
+  echo "Use is subject to the AF3 weights terms of use:"
+  echo "https://github.com/google-deepmind/alphafold3/blob/main/WEIGHTS_TERMS_OF_USE.md"
+  if [[ -s "$src/models/af3.bin" || -s "$src/models/af3.bin.zst" ]]; then
+    echo "already present"
+  else
+    # AF3 reads the zstd-compressed file directly, so it is kept compressed.
+    download "$AF3_PARAMS_URL" "$src/models/af3.bin.zst"
+  fi
+
   log "AlphaFold 3 databases (~630 GB) -> $dbs"
   if [[ -e "$dbs/.stoiagent_complete" ]]; then
     echo "already downloaded"
@@ -167,9 +178,8 @@ write_config
 log "Remaining manual steps"
 missing=0
 if (( DO_AF3 )) && [[ ! -e "$REPO/tools/alphafold3/models/af3.bin" && ! -e "$REPO/tools/alphafold3/models/af3.bin.zst" ]]; then
-  echo "- Request the AF3 model parameters from Google DeepMind and put af3.bin in"
-  echo "  $REPO/tools/alphafold3/models/"
-  echo "  https://github.com/google-deepmind/alphafold3/blob/main/docs/installation.md#obtaining-model-parameters"
+  echo "- Download the AF3 model parameters into $REPO/tools/alphafold3/models/:"
+  echo "  $AF3_PARAMS_URL"
   missing=1
 fi
 if (( DO_AF3 )) && ! { command -v docker >/dev/null && docker image inspect stoiagent-alphafold3 >/dev/null 2>&1; }; then
