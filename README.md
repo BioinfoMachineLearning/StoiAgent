@@ -96,7 +96,17 @@ stoiagent \
 
 `A2B1` means two copies of subunit A and one copy of subunit B. `top1_stoichiometry` is the prediction, `ranked_stoichiometries` is the final Stage-2 order of the shortlist, and `stage1_candidates` is the Stage-1 shortlist that AF3 modeled, in Stage-1 order.
 
-All files of a run go to `--output_dir`. The target is named after the input FASTA (`H0208.fasta` → `H0208`); FASTA names that are not an `H` or `T` followed by four digits are named `H0001` instead. The tree below is from `--input_fasta examples/casp16/H0208.fasta --num_models 25`, with the default `--model Qwen3.6-27B` and `--k 5`:
+All files of a run go to `--output_dir`. The target is named after the input FASTA (`H0208.fasta` → `H0208`); FASTA names that are not an `H` or `T` followed by four digits are named `H0001` instead. The examples in this section come from this run of the CASP16 target H0208, with the default `--model Qwen3.6-27B` and `--k 5`:
+
+```bash
+stoiagent \
+  --input_fasta examples/casp16/H0208.fasta \
+  --output_dir results/H0208 \
+  --description "dahAB" \
+  --num_models 25
+```
+
+`dahAB` is the description from the CASP16 sequence release (`examples/casp16_stoichiometry.csv`). With 25 AF3 models per candidate instead of the default 100, the run took about 2.5 hours on one A100 80GB: about 15 minutes of template search, 15 minutes for Stage 1, just under 2 hours of AF3 (an hour of it for the eight-chain `A4B4`) and a few minutes for Stage 2. It produces this folder:
 
 ```text
 results/H0208/
