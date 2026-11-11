@@ -19,4 +19,7 @@ dependencies:
       # default PyPI build needs a CUDA 13 driver (580+).
       - --extra-index-url https://download.pytorch.org/whl/cu126
       - torch==2.14.1+cu126
+      # Must match the torch build above; the default PyPI torchvision
+      # fails to import against this torch.
+      - torchvision==0.29.1+cu126
       - -e .

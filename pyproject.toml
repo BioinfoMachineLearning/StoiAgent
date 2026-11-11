@@ -16,6 +16,10 @@ dependencies = [
   "beautifulsoup4",
   "lxml",
   "torch",
+  # Qwen3.6-27B loads through transformers' multimodal classes, whose
+  # image processor needs Pillow and torchvision even for text-only use.
+  "torchvision",
+  "pillow",
   "transformers>=5.18.0",
   "accelerate",
 ]
