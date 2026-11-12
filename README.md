@@ -37,14 +37,6 @@ The AF3 model parameters are subject to Google DeepMind's [terms of use](https:/
 docker build -t stoiagent-alphafold3 -f tools/alphafold3/docker/Dockerfile tools/alphafold3
 ```
 
-**4. Run a prediction:**
-
-```bash
-stoiagent --input_fasta examples/casp16/H0208.fasta --output_dir results/H0208
-```
-
-The first run also downloads the LLM weights (about 63 GB).
-
 ## Running StoiAgent
 
 ### Input
@@ -78,6 +70,8 @@ stoiagent \
 | `--k` | 5 | Number of candidates modeled with AF3 and reranked |
 | `--num_models` | 100 | AF3 models per candidate (a multiple of 5) |
 | `--config` | `config.json` | Configuration file (see [Configuration](#configuration)) |
+
+The first run also downloads the LLM weights (about 63 GB).
 
 ### Output
 
